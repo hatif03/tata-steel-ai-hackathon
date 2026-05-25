@@ -1,0 +1,63 @@
+Tata Steel AI Hackathon — GBM Ensemble
+Method folder: models/gbm-ensemble
+Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
+
+================================================================================
+1. APPROACH
+================================================================================
+
+Ensemble of three gradient boosted tree classifiers on shared tabular features:
+
+  - XGBoost (XGBClassifier)
+  - LightGBM (LGBMClassifier)
+  - CatBoost (CatBoostClassifier, auto_class_weights='Balanced')
+
+Each model uses the same stratified 5-fold CV splits (random_state=42). Out-of-fold
+(OOF) positive-class probabilities are collected per base model, then combined as a
+weighted average. Blend weights and the classification threshold are tuned jointly
+on OOF predictions to maximize accuracy.
+
+Final inference: retrain all three models on full train data, blend test
+probabilities with optimized weights, apply tuned threshold.
+
+Prior single-model leaderboard: lightgbm-cv scored 1.88679 on HackerEarth.
+
+================================================================================
+2. FEATURE ENGINEERING
+================================================================================
+
+Shared pipeline (utils/tabular_features.py):
+
+  - Raw X1–X49 with NaN retained (native missing handling in all three GBMs)
+  - Binary miss_* indicators for columns with meaningful train missing rates
+    (X15, X42, X48, X10, X16, X23–X27)
+  - row_missing_count — total missing features per row
+
+CoilID excluded (identifier only).
+
+================================================================================
+3. TOOLS AND LIBRARIES
+================================================================================
+
+Python 3.11+; xgboost, lightgbm, catboost, scikit-learn, pandas, numpy,
+matplotlib, joblib.
+
+Base hyperparameters (all models): ~500 trees, depth 4, lr 0.05, subsample 0.8.
+XGBoost/LightGBM: scale_pos_weight ≈ 19.48. CatBoost: auto_class_weights.
+
+================================================================================
+4. HOW TO REPRODUCE
+================================================================================
+
+  python models/gbm-ensemble/train.py
+  python models/gbm-ensemble/predict.py
+  python models/gbm-ensemble/pack.py
+
+Data: dataset/train.csv, dataset/test.csv
+
+================================================================================
+5. SUBMISSION FILES
+================================================================================
+
+submission/submission.csv — CoilID,Y (339 rows)
+submission/gbm-ensemble-hackerearth.zip — approach.txt + source/

@@ -1,0 +1,4 @@
+LightGBM seed blend (seeds 42, 123, 456) on lightgbm-cv features.
+Same hyperparameters as lightgbm-cv; average probabilities only (no XGB/CatBoost).
+
+Reproduce: python models/lightgbm-seedblend/train.py && predict.py && pack.py

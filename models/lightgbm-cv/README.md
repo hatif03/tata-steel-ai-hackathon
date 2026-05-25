@@ -66,7 +66,7 @@ Same structure as other methods under `outputs/runs/<timestamp>/` — see `utils
 | OOF positives predicted | 18 | 12 | +6 |
 | Test positives predicted | **5** | 3 | +2 |
 | Majority baseline | 95.12% | 95.12% | — |
-| Leaderboard (HackerEarth) | _After submit_ | 1.13208 | — |
+| Leaderboard (HackerEarth) | **1.88679** | 1.13208 | — |
 
 Fold PR-AUC: 0.60, 0.20, 0.25, 0.48, 0.58.
 

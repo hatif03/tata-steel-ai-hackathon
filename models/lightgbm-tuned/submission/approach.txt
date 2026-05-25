@@ -1,0 +1,14 @@
+Tata Steel AI Hackathon — LightGBM Tuned
+Method: models/lightgbm-tuned
+
+Single LightGBM on the winning lightgbm-cv feature set (native NaN + missing indicators).
+Hyperparameter grid selected by OOF accuracy (not ensemble).
+
+Prior leaderboard:
+  lightgbm-cv: 1.88679 (best)
+  gbm-ensemble: 1.13208 (failed — do not blend)
+
+Reproduce:
+  python models/lightgbm-tuned/train.py
+  python models/lightgbm-tuned/predict.py
+  python models/lightgbm-tuned/pack.py

@@ -84,6 +84,12 @@ scripts/setup.ps1         # create .venv (gitignored)
 
 See `models/xgboost-baseline/README.md` for method details.
 
+## Development history
+
+Full log of experiments, leaderboard scores, failures, and lessons learned:
+
+**[DEVELOPMENT.md](DEVELOPMENT.md)** — chronology, metrics, why lightgbm-cv won, and why the ensemble regressed.
+
 ## What gets committed vs generated
 
 | Path | Git | Regenerate |

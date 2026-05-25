@@ -1,0 +1,48 @@
+Tata Steel AI Hackathon — LightGBM Feature Engineering
+Method folder: models/lightgbm-fe
+
+================================================================================
+1. APPROACH
+================================================================================
+
+Single LightGBM model (no ensemble). Prior results on this dataset:
+  - lightgbm-cv:        HackerEarth 1.88679 (best so far)
+  - gbm-ensemble:       HackerEarth 1.13208 (regressed — blending diluted LightGBM)
+  - xgboost-baseline:   HackerEarth 1.13208
+
+This method extends the winning lightgbm-cv pipeline with additional features and
+a small hyperparameter grid selected by OOF PR-AUC, then accuracy threshold tuning.
+
+Native NaN handling retained. Stratified 5-fold CV, random_state=42.
+
+================================================================================
+2. FEATURE ENGINEERING
+================================================================================
+
+Base (from utils/tabular_features.py):
+  - Raw X1–X49 with NaN kept
+  - miss_* indicators for sparse columns
+  - row_missing_count
+
+Added (utils/tabular_features_enriched.py):
+  - log_X34 … log_X49 — log1p on count/flag columns
+  - ratio pairs among high-signal continuous features (X13/X10, X30/X32, etc.)
+  - cont_mean, cont_std, cont_max, cont_min, cont_range over X1–X33
+  - count_sum, count_nonzero over X34–X49
+
+================================================================================
+3. TOOLS
+================================================================================
+
+Python 3.11+, lightgbm, scikit-learn, pandas, numpy, matplotlib, joblib.
+
+Hyperparameter grid (best selected by OOF PR-AUC):
+  depth4_leaves15 / depth5_leaves23 / depth6_leaves31 variants.
+
+================================================================================
+4. REPRODUCE
+================================================================================
+
+  python models/lightgbm-fe/train.py
+  python models/lightgbm-fe/predict.py
+  python models/lightgbm-fe/pack.py

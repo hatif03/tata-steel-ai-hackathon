@@ -72,7 +72,13 @@ def copy_source_files(method_dir: Path, source_dir: Path) -> list[Path]:
 
     utils_dir = source_dir / "utils"
     utils_dir.mkdir(exist_ok=True)
-    for util_name in ("plotting.py", "run_artifacts.py", "submission_pack.py", "tabular_features.py"):
+    for util_name in (
+        "plotting.py",
+        "run_artifacts.py",
+        "submission_pack.py",
+        "tabular_features.py",
+        "tabular_features_enriched.py",
+    ):
         util = repo_root() / "utils" / util_name
         if util.is_file():
             dest = utils_dir / util_name
