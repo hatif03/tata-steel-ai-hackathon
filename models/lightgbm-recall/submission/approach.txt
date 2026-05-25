@@ -1,0 +1,16 @@
+Tata Steel AI Hackathon — LightGBM Recall-First
+Method: models/lightgbm-recall
+
+Same LightGBM pipeline as lightgbm-cv (native NaN + missing indicators).
+Threshold: recall-oriented via utils/threshold_tuning.py
+  1. 100% OOF recall if achievable
+  2. Else FPR <= 3%
+  3. Else forum fixed t=0.05
+
+Phase 0 offline winner: lightgbm-cv proba @ t=0.05 → 19 test positives, all canary coils positive.
+Prior best LB: lightgbm-cv @ t=0.73 = 1.88679
+
+Reproduce:
+  python models/lightgbm-recall/train.py
+  python models/lightgbm-recall/predict.py
+  python models/lightgbm-recall/pack.py

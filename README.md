@@ -88,7 +88,20 @@ See `models/xgboost-baseline/README.md` for method details.
 
 Full log of experiments, leaderboard scores, failures, and lessons learned:
 
-**[DEVELOPMENT.md](DEVELOPMENT.md)** — chronology, metrics, why lightgbm-cv won, and why the ensemble regressed.
+**[DEVELOPMENT.md](DEVELOPMENT.md)** — chronology, metrics, recall-first evolution (Phase 5), upload order.
+
+### Recall-first submissions (upload to HackerEarth)
+
+| Method | Test positives | Path |
+|--------|----------------|------|
+| **lightgbm-recall** (recommended) | 19 | `models/lightgbm-recall/submission/` |
+| sklearn-recall | 21 | `models/sklearn-recall/submission/` |
+| gbm-recall | 15 | `models/gbm-recall/submission/` |
+
+```powershell
+python scripts/check_submission_vs_baseline.py models/lightgbm-recall/submission/submission.csv
+python models/lightgbm-recall/pack.py
+```
 
 ## What gets committed vs generated
 

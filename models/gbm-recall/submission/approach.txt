@@ -1,0 +1,9 @@
+Tata Steel AI Hackathon — GBM Recall Ensemble
+Method: models/gbm-recall
+
+Equal-weight ensemble: XGBoost + LightGBM + CatBoost on utils/tabular_features.py.
+Threshold: recall-first (100% OOF recall, else FPR<=3%, else t=0.05 per forum).
+
+Unlike gbm-ensemble (failed LB 1.13208), this uses equal weights and low recall-oriented threshold.
+
+Reproduce: python models/gbm-recall/train.py && predict.py && pack.py

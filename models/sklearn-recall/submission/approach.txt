@@ -1,0 +1,8 @@
+Tata Steel AI Hackathon — Sklearn Recall Ensemble
+Method: models/sklearn-recall
+
+RandomForest + ExtraTrees + GradientBoosting on tabular_features with median imputation in CV.
+class_weight {0:1, 1:30} for RF/ET. Equal-weight probability blend.
+Recall-first threshold via utils/threshold_tuning.py.
+
+Reproduce: python models/sklearn-recall/train.py && predict.py && pack.py

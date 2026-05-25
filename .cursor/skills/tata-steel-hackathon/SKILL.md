@@ -37,16 +37,32 @@ Public sources indicate Round 1 is scored primarily on **classification accuracy
 
 | Monitor locally | Optimize for submission |
 |-----------------|---------------------------|
-| PR-AUC, F1, balanced accuracy | Accuracy at chosen threshold |
-| Stratified K-fold (k=5) | Match HackerEarth binary `{0,1}` predictions |
+| PR-AUC, OOF recall, FPR | **Test accuracy** (leaderboard top ~100) |
+| Stratified K-fold (k=5) | Integer `{0,1}` predictions |
 
-After CV, tune the **decision threshold** on out-of-fold probabilities to maximize expected accuracy (not default 0.5).
+**Threshold strategy (recall-first, forum-aligned):**
+
+Use `utils/threshold_tuning.select_recall_oriented_threshold`:
+
+1. 100% OOF recall if achievable without &gt;12% positive rate
+2. Else FPR ≤ 3% on OOF
+3. Else forum fixed **t = 0.05** on test probabilities
+
+Do **not** use high thresholds (0.7+) that yield only 3–5 test positives — that capped LB at ~1.89 while leaders predict ~20–26 positives.
+
+Always run before upload:
+
+```powershell
+python scripts/check_submission_vs_baseline.py models/{method}/submission/submission.csv
+```
+
+Legacy `tune_max_accuracy` (lightgbm-cv @ t=0.73) remains a fallback reference (LB 1.88679).
 
 ### High-impact modeling choices
 
 1. **Gradient boosting first** — LightGBM, XGBoost, CatBoost handle mixed scales, missing values, and imbalance (`scale_pos_weight`, `class_weight`, focal loss variants).
 2. **Class imbalance** — stratified splits; prefer PR-AUC for model selection; threshold-tune for accuracy.
-3. **Ensembling** — average or rank-average probabilities from 2–3 diverse GBMs; often +0.5–2% accuracy on small tabular sets.
+3. **Ensembling** — equal-weight GBM or RF+ET+GBM blends work **with low recall-first thresholds** (not high-threshold blends).
 4. **Feature work** — ratios/interactions among X1–X33 (continuous process signals) and X34–X49 (counts/flags); missing indicators for X15; avoid target encoding without nested CV.
 5. **Reproducibility** — fix seeds (`random_state=42`); log library versions in notebooks.
 
@@ -54,7 +70,7 @@ After CV, tune the **decision threshold** on out-of-fold probabilities to maximi
 
 - Using external datasets or pretrained models trained on outside steel/defect data
 - Tuning on test predictions or peeking at test labels
-- Optimizing PR-AUC alone without threshold calibration for accuracy
+- Optimizing OOF accuracy alone with high threshold when test needs more positive predictions
 - Putting `CoilID` in the feature matrix
 - Single holdout split on 1,352 rows (high variance)
 

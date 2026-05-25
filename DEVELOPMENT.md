@@ -401,46 +401,78 @@ Upload:
 
 ---
 
-## 14. Suggested next steps (not yet done)
+## 14. Phase 5 — Recall-first evolution (2026-05-25)
 
-1. **Pre-upload guard script** — warn if test proba on canary coils drops vs lightgbm-cv baseline.
-2. **Targeted FE** — one feature at a time; reject if 806/1187 OOF or test proba collapse.
-3. **Avoid multi-model / multi-seed averaging** unless test canary check passes.
-4. **Repeated stratified CV** or bootstrap for stabler OOF (high fold variance: PR-AUC 0.20–0.60).
-5. **CatBoost-only** with same base features (single model, no blend) — untested on LB.
+Forum reports for the same **Hot Rolling Defect Detection** problem indicate top leaderboard scores ~**100**, while our best was **1.88679** with only **5/339** test positives. Winners use:
+
+- GBM or sklearn ensembles
+- **Low thresholds** (0.05–0.31) targeting **100% OOF recall** or FPR &lt; 3%
+- **19–26 test positives** (~6–8% rate), not 3–5
+
+### Infrastructure added
+
+| File | Purpose |
+|------|---------|
+| [`utils/threshold_tuning.py`](utils/threshold_tuning.py) | `tune_max_accuracy`, `tune_recall_first`, `tune_target_fpr`, `select_recall_oriented_threshold` |
+| [`scripts/run_phase0_threshold_sweep.py`](scripts/run_phase0_threshold_sweep.py) | Offline sweep on saved OOF/test probas |
+| [`scripts/check_submission_vs_baseline.py`](scripts/check_submission_vs_baseline.py) | Pre-upload guard (canary coils, positive count) |
+
+### New method folders
+
+| Method | Threshold | Test pos | Notes |
+|--------|-----------|----------|-------|
+| **lightgbm-recall** | t=0.05 (fixed_t_0.05) | **19** | **Phase 0 winner — upload first** |
+| gbm-recall | t≈0.24 (target_fpr) | 15 | Equal-weight LGB+XGB+CatBoost |
+| sklearn-recall | t≈0.46 (target_fpr) | 21 | RF+ET+GBM, class_weight 1:30 |
+
+100% OOF recall was **not achievable** on lightgbm-cv without predicting &gt;12% positives; `select_recall_oriented_threshold` falls back to FPR cap or forum t=0.05.
+
+### Recommended upload order
+
+1. `models/lightgbm-recall/submission/submission.csv` + zip
+2. `models/sklearn-recall/submission/` (21 positives)
+3. `models/gbm-recall/submission/` (15 positives)
+
+```powershell
+python scripts/check_submission_vs_baseline.py models/lightgbm-recall/submission/submission.csv
+python models/lightgbm-recall/pack.py
+```
+
+Log new HackerEarth scores in §15 after upload.
 
 ---
 
-## 15. HackerEarth submission log
+## 15. Suggested next steps
+
+1. **Upload recall-first submissions** and compare LB to 1.88679 / target ~100.
+2. **RF + SMOTE** inside CV (Phase 3 of recall plan) if still below leaders.
+3. **Targeted FE** only with canary-coil guard passing.
+4. Repeated stratified CV for stabler OOF.
+
+---
+
+## 16. HackerEarth submission log
 
 | Date (2026) | Method | Score | Test pos | Notes |
 |-------------|--------|-------|----------|-------|
 | ~05-25 | xgboost-baseline | 1.13208 | 3 | First submission |
-| ~05-25 | lightgbm-cv | **1.88679** | 5 | **Best** |
-| ~05-25 | gbm-ensemble | 1.13208 | 3 | Regression; same score as XGB baseline |
+| ~05-25 | lightgbm-cv | **1.88679** | 5 | Best (accuracy-threshold era) |
+| ~05-25 | gbm-ensemble | 1.13208 | 3 | Failed — high threshold |
+| ~05-25 | lightgbm-recall | _Pending upload_ | 19 | Recall-first t=0.05 |
+| ~05-25 | sklearn-recall | _Pending upload_ | 21 | Sklearn ensemble |
+| ~05-25 | gbm-recall | _Pending upload_ | 15 | Equal-weight GBM |
 
 ---
 
-## 16. Key hyperparameters (winning model)
+## 17. Key hyperparameters (recall-first model)
 
-**`lightgbm-cv` — `LGBMClassifier`:**
+**`lightgbm-recall` — same LGBM as lightgbm-cv, threshold t=0.05:**
 
-```python
-n_estimators=500
-max_depth=4
-learning_rate=0.05
-subsample=0.8
-colsample_bytree=0.8
-scale_pos_weight ≈ 19.48  # 1286/66
-random_state=42
-objective='binary'
-# Features: 49 raw + 10 miss_* + row_missing_count = 60 columns
-# Threshold: 0.73
-```
+See §16 in prior version for LGBM params; threshold strategy in `utils/threshold_tuning.py`.
 
 ---
 
-## 17. References
+## 18. References
 
 - Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
 - Method READMEs: `models/*/README.md`
