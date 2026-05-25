@@ -1,0 +1,26 @@
+"""Package HackerEarth submission for xgboost-baseline."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from utils.submission_pack import pack_method  # noqa: E402
+
+METHOD_DIR = Path(__file__).resolve().parent
+
+
+def main() -> None:
+    archive = pack_method(METHOD_DIR)
+    submission_dir = METHOD_DIR / "submission"
+    print(f"Submission CSV: {submission_dir / 'submission.csv'}")
+    print(f"Source archive: {archive}")
+    print("Upload both files to HackerEarth.")
+
+
+if __name__ == "__main__":
+    main()

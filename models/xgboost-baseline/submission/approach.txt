@@ -1,0 +1,105 @@
+Tata Steel AI Hackathon — XGBoost Baseline
+Method folder: models/xgboost-baseline
+Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
+
+================================================================================
+1. APPROACH
+================================================================================
+
+We treat Round 1 as binary tabular classification on steel coil process features
+(CoilID identifier, X1–X49 numeric predictors, binary target Y).
+
+Model: XGBoost gradient boosted decision trees (XGBClassifier).
+
+Pipeline:
+  1. Drop CoilID from features (identifier only — not used for learning).
+  2. Median imputation (SimpleImputer) fit inside each CV fold on training rows
+     only, then applied to validation fold (prevents leakage).
+  3. Stratified 5-fold cross-validation to collect out-of-fold (OOF) positive
+     class probabilities on the training set.
+  4. Tune decision threshold on OOF probabilities to maximize accuracy (not 0.5).
+  5. Retrain final model on full training data with imputer fit on all train rows.
+  6. Predict test set; output integer labels {0, 1} in submission.csv.
+
+Class imbalance: positive rate ~4.9% (66 / 1352). We set
+  scale_pos_weight = n_negative / n_positive ≈ 19.48
+instead of SMOTE/oversampling to avoid synthetic-sample leakage on small data.
+
+Primary offline metrics: OOF PR-AUC (ranking quality on imbalanced data) and
+OOF accuracy at the tuned threshold.
+
+Random seed: 42 (numpy, sklearn StratifiedKFold, XGBoost).
+
+================================================================================
+2. FEATURE ENGINEERING
+================================================================================
+
+Current baseline uses raw features X1–X49 with no derived columns.
+
+Rationale for this submission:
+  - Tree models capture nonlinear interactions without manual crosses.
+  - Mixed continuous (X1–X33) and count/flag-like (X34–X49) columns remain in
+    native numeric form; XGBoost handles different scales without scaling.
+  - Missing values (~14% of rows have at least one null) handled via median
+    imputation per fold rather than dropping rows.
+
+Features explicitly excluded:
+  - CoilID (row identifier; using it would leak non-generalizable patterns).
+
+Future extensions (not in this submission): interaction terms, log transforms for
+heavy-tailed sensors, missingness indicators per column, target encoding with
+nested CV.
+
+================================================================================
+3. TOOLS AND LIBRARIES
+================================================================================
+
+Language: Python 3.11+
+
+Core libraries:
+  - xgboost       — gradient boosted trees
+  - scikit-learn  — imputation, StratifiedKFold, metrics
+  - pandas        — CSV I/O and tabular handling
+  - numpy         — array ops, threshold sweep
+  - matplotlib    — PR curve, threshold sweep, confusion matrix, feature importance plots
+  - joblib        — serialize imputer and metadata
+
+Project utilities (included in source bundle):
+  - utils/run_artifacts.py — timestamped run directories, latest summary
+  - utils/plotting.py      — standard metric plots saved to outputs/runs/
+
+Environment:
+  - Local: venv via scripts/setup.ps1
+  - Optional: Google Colab notebook models/xgboost-baseline/xgboost-baseline.ipynb
+
+Hyperparameters (XGBClassifier):
+  n_estimators=500, max_depth=4, learning_rate=0.05,
+  subsample=0.8, colsample_bytree=0.8,
+  objective='binary:logistic', eval_metric='logloss',
+  scale_pos_weight≈19.48, random_state=42, n_jobs=-1
+
+================================================================================
+4. HOW TO REPRODUCE
+================================================================================
+
+From repository root:
+
+  python models/xgboost-baseline/train.py
+  python models/xgboost-baseline/predict.py
+  python .cursor/skills/tata-steel-submission/scripts/validate_submission.py \
+      models/xgboost-baseline/outputs/latest/predictions/submission.csv
+
+Data expected at dataset/train.csv and dataset/test.csv (provided by HackerEarth).
+
+Outputs land in models/xgboost-baseline/outputs/runs/<timestamp>/ with metrics,
+plots, saved model artifacts, and predictions/submission.csv.
+
+This HackerEarth package was built from the latest run via pack_submission.py.
+
+================================================================================
+5. SUBMISSION FILES
+================================================================================
+
+Prediction file: submission/submission.csv  (columns: CoilID,Y — 339 test rows)
+Source archive:  submission/xgboost-baseline-hackerearth.zip
+  Contains approach.txt (this file) and source/ (train.py, predict.py, notebook, utils)

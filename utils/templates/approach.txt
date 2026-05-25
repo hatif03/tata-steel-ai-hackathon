@@ -1,0 +1,45 @@
+Tata Steel AI Hackathon — {METHOD_NAME}
+Method folder: models/{METHOD_NAME}
+Problem: {PROBLEM_URL}
+
+================================================================================
+1. APPROACH
+================================================================================
+
+(Describe: task formulation, model family, train/validation strategy, class
+imbalance handling, threshold tuning for accuracy, random seeds, leakage guards.)
+
+================================================================================
+2. FEATURE ENGINEERING
+================================================================================
+
+(Describe: which columns used as features, excluded IDs, missing-value handling,
+any derived features or interactions, what you intentionally did NOT engineer yet.)
+
+================================================================================
+3. TOOLS AND LIBRARIES
+================================================================================
+
+(Describe: Python version, libraries, local venv vs Colab, key hyperparameters.)
+
+================================================================================
+4. HOW TO REPRODUCE
+================================================================================
+
+From repository root (with venv activated):
+
+  python models/{METHOD_NAME}/train.py
+  python models/{METHOD_NAME}/predict.py
+  python models/{METHOD_NAME}/pack.py
+
+Data: dataset/train.csv, dataset/test.csv (HackerEarth-provided only).
+
+================================================================================
+5. SUBMISSION FILES
+================================================================================
+
+Prediction file: submission/submission.csv  (columns: CoilID,Y — 339 test rows)
+Source archive:  submission/{METHOD_NAME}-hackerearth.zip
+  Contains approach.txt (this file) and source/ (notebook, scripts, utils)
+
+Upload both separately to the HackerEarth problem page.
