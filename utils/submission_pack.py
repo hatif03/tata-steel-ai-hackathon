@@ -12,7 +12,7 @@ from typing import Literal
 
 from utils.run_artifacts import get_latest_run_dir, repo_root, save_json
 
-SOURCE_FILES = ("README.md", "train.py", "predict.py")
+SOURCE_FILES = ("README.md", "train.py", "predict.py", "features.py")
 
 
 def validate_submission_csv(submission_path: Path, test_path: Path) -> list[str]:
@@ -72,7 +72,7 @@ def copy_source_files(method_dir: Path, source_dir: Path) -> list[Path]:
 
     utils_dir = source_dir / "utils"
     utils_dir.mkdir(exist_ok=True)
-    for util_name in ("plotting.py", "run_artifacts.py", "submission_pack.py"):
+    for util_name in ("plotting.py", "run_artifacts.py", "submission_pack.py", "tabular_features.py"):
         util = repo_root() / "utils" / util_name
         if util.is_file():
             dest = utils_dir / util_name

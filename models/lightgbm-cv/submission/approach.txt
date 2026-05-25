@@ -1,0 +1,91 @@
+Tata Steel AI Hackathon — LightGBM CV
+Method folder: models/lightgbm-cv
+Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
+
+================================================================================
+1. APPROACH
+================================================================================
+
+Binary classification on steel coil process features (CoilID identifier, X1–X49
+numeric predictors, binary target Y).
+
+Model: LightGBM gradient boosted decision trees (LGBMClassifier).
+
+Improvements over xgboost-baseline:
+  - Native missing-value handling: raw NaNs passed to LightGBM (no median
+    imputation), preserving split direction on missingness.
+  - Missingness indicators for sparse columns (X15, X42, X48, and other
+    columns with train missing rates ≥ ~0.4%).
+  - Row-level missing count feature (row_missing_count).
+
+Pipeline:
+  1. Drop CoilID from features.
+  2. Build feature matrix via features.py (raw X1–X49 + miss_* + row count).
+  3. Stratified 5-fold CV; collect OOF positive-class probabilities.
+  4. Tune decision threshold on OOF to maximize accuracy.
+  5. Retrain on full train; predict test with tuned threshold.
+
+Class imbalance: scale_pos_weight = n_negative / n_positive ≈ 19.48.
+
+Random seed: 42 (numpy, sklearn StratifiedKFold, LightGBM).
+
+================================================================================
+2. FEATURE ENGINEERING
+================================================================================
+
+Base features: X1–X49 (NaN retained for LightGBM).
+
+Added columns:
+  - miss_X15, miss_X42, miss_X48, miss_X10, miss_X16, miss_X23, miss_X24,
+    miss_X25, miss_X26, miss_X27 — binary indicators (1 if value missing).
+  - row_missing_count — count of missing values across X1–X49 per row.
+
+Rationale:
+  - X15 is missing in ~12% of train rows; missingness may correlate with Y.
+  - LightGBM learns optimal missing direction per split; indicators add explicit signal.
+
+Excluded: CoilID (identifier only).
+
+================================================================================
+3. TOOLS AND LIBRARIES
+================================================================================
+
+Language: Python 3.11+
+
+Core libraries:
+  - lightgbm      — gradient boosted trees with native NaN support
+  - scikit-learn  — StratifiedKFold, metrics
+  - pandas, numpy — tabular I/O and feature construction
+  - matplotlib    — evaluation plots
+  - joblib        — model serialization
+
+Project utilities:
+  - utils/run_artifacts.py — run directories, latest summary
+  - utils/plotting.py      — PR curve, threshold sweep, confusion matrix
+  - models/lightgbm-cv/features.py — shared feature builder for train/predict
+
+Hyperparameters (LGBMClassifier):
+  n_estimators=500, max_depth=4, learning_rate=0.05,
+  subsample=0.8, colsample_bytree=0.8, objective='binary',
+  scale_pos_weight≈19.48, random_state=42, n_jobs=-1
+
+================================================================================
+4. HOW TO REPRODUCE
+================================================================================
+
+From repository root:
+
+  python models/lightgbm-cv/train.py
+  python models/lightgbm-cv/predict.py
+  python .cursor/skills/tata-steel-submission/scripts/pack_submission.py models/lightgbm-cv
+
+Data: dataset/train.csv, dataset/test.csv
+
+Outputs: models/lightgbm-cv/outputs/runs/<timestamp>/
+
+================================================================================
+5. SUBMISSION FILES
+================================================================================
+
+Prediction file: submission/submission.csv  (CoilID,Y — 339 test rows)
+Source archive:  submission/lightgbm-cv-hackerearth.zip
