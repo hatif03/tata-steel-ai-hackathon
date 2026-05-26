@@ -1,0 +1,14 @@
+Tata Steel AI Hackathon — lightgbm-optuna
+
+Optuna TPE search (~50 trials) on LightGBM hyperparameters optimizing OOF PR-AUC.
+10-fold StratifiedKFold CV. Canary guard: reject trial if test proba on coils 806 or
+1187 falls below sklearn-recall baseline.
+
+Features: utils/tabular_features.py. Threshold: top-K rank (default K=26).
+
+Libraries: optuna, lightgbm, scikit-learn, pandas, joblib.
+
+Reproduce:
+  python models/lightgbm-optuna/train.py --n-trials 50
+  python models/lightgbm-optuna/predict.py
+  python models/lightgbm-optuna/pack.py

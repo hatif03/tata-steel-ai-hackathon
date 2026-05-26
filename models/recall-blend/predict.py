@@ -1,4 +1,4 @@
-"""Predict test set for gbm-recall ensemble."""
+"""Predict test set for recall-blend (50/50 sklearn + LightGBM)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from catboost import CatBoostClassifier
-from xgboost import XGBClassifier
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -18,15 +16,11 @@ if str(ROOT) not in sys.path:
 
 from utils.run_artifacts import copy_to_latest_summary, load_json, resolve_run_dir, save_json
 from utils.tabular_features import to_frame
-from utils.threshold_tuning import apply_threshold, apply_top_k
+from utils.threshold_tuning import apply_threshold
 
 METHOD_DIR = Path(__file__).resolve().parent
-MODEL_NAMES = ("xgb", "lgbm", "catboost")
+SKLEARN_NAMES = ("rf", "et", "gbm")
 CANARY_COILS = (654, 806, 532, 958, 1187)
-
-
-def canary_indices(coil_ids: pd.Series) -> list[int]:
-    return [int(i) for i, c in enumerate(coil_ids) if int(c) in CANARY_COILS]
 
 
 def main() -> None:
@@ -41,30 +35,22 @@ def main() -> None:
     predictions_dir.mkdir(parents=True, exist_ok=True)
 
     meta = joblib.load(artifacts_dir / "meta.joblib")
-    weights = meta["blend_weights"]
+    sk_weights = meta["sklearn_blend_weights"]
+    blend_weights = meta["blend_weights"]
     test = pd.read_csv(args.data_dir / "test.csv")
-    X = to_frame(test)
+    X_raw = joblib.load(artifacts_dir / "imputer.joblib").transform(to_frame(test).values)
+    X_lgb = to_frame(test)
 
-    xgb = XGBClassifier()
-    xgb.load_model(str(artifacts_dir / "xgb_model.json"))
+    sk_proba = np.zeros(len(test))
+    for name in SKLEARN_NAMES:
+        model = joblib.load(artifacts_dir / f"{name}_model.joblib")
+        sk_proba += sk_weights[name] * model.predict_proba(X_raw)[:, 1]
+
     lgbm = joblib.load(artifacts_dir / "lgbm_model.joblib")
-    cat = CatBoostClassifier()
-    cat.load_model(str(artifacts_dir / "catboost_model.cbm"))
+    lgb_proba = lgbm.predict_proba(X_lgb)[:, 1]
+    proba = blend_weights["sklearn"] * sk_proba + blend_weights["lgbm"] * lgb_proba
 
-    proba = (
-        weights["xgb"] * xgb.predict_proba(X)[:, 1]
-        + weights["lgbm"] * lgbm.predict_proba(X)[:, 1]
-        + weights["catboost"] * cat.predict_proba(X)[:, 1]
-    )
-    strategy = meta.get("threshold_strategy", "")
-    if strategy.startswith("top_k_"):
-        k = int(strategy.split("_")[-1])
-        pred, eff_t = apply_top_k(proba, k, force_positive_idx=canary_indices(test["CoilID"]))
-        threshold = eff_t
-    else:
-        pred = apply_threshold(proba, meta["threshold"])
-        threshold = meta["threshold"]
-
+    pred = apply_threshold(proba, meta["threshold"])
     pd.DataFrame({"CoilID": test["CoilID"], "Y": pred}).to_csv(
         predictions_dir / "submission.csv", index=False
     )
@@ -74,13 +60,11 @@ def main() -> None:
 
     canary_mask = test["CoilID"].isin(CANARY_COILS)
     canary_preds = {
-        int(k): int(v) for k, v in zip(
-            test.loc[canary_mask, "CoilID"].astype(int),
-            pred[canary_mask.to_numpy()],
-        )
+        int(c): int(p)
+        for c, p in zip(test.loc[canary_mask, "CoilID"], pred[canary_mask.to_numpy()])
     }
     predict_meta = {
-        "threshold": threshold,
+        "threshold": meta["threshold"],
         "threshold_strategy": meta.get("threshold_strategy"),
         "test_positives": int((pred == 1).sum()),
         "canary_predictions": canary_preds,

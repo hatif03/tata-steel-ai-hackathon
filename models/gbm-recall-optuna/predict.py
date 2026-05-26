@@ -1,4 +1,4 @@
-"""Predict test set for gbm-recall ensemble."""
+"""Predict test set for gbm-recall-optuna."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import joblib
-import numpy as np
 import pandas as pd
 from catboost import CatBoostClassifier
 from xgboost import XGBClassifier
@@ -18,10 +17,9 @@ if str(ROOT) not in sys.path:
 
 from utils.run_artifacts import copy_to_latest_summary, load_json, resolve_run_dir, save_json
 from utils.tabular_features import to_frame
-from utils.threshold_tuning import apply_threshold, apply_top_k
+from utils.threshold_tuning import apply_top_k
 
 METHOD_DIR = Path(__file__).resolve().parent
-MODEL_NAMES = ("xgb", "lgbm", "catboost")
 CANARY_COILS = (654, 806, 532, 958, 1187)
 
 
@@ -56,45 +54,22 @@ def main() -> None:
         + weights["lgbm"] * lgbm.predict_proba(X)[:, 1]
         + weights["catboost"] * cat.predict_proba(X)[:, 1]
     )
-    strategy = meta.get("threshold_strategy", "")
-    if strategy.startswith("top_k_"):
-        k = int(strategy.split("_")[-1])
-        pred, eff_t = apply_top_k(proba, k, force_positive_idx=canary_indices(test["CoilID"]))
-        threshold = eff_t
-    else:
-        pred = apply_threshold(proba, meta["threshold"])
-        threshold = meta["threshold"]
+    k = int(meta["k"])
+    pred, eff_t = apply_top_k(proba, k, force_positive_idx=canary_indices(test["CoilID"]))
 
-    pd.DataFrame({"CoilID": test["CoilID"], "Y": pred}).to_csv(
-        predictions_dir / "submission.csv", index=False
-    )
+    pd.DataFrame({"CoilID": test["CoilID"], "Y": pred}).to_csv(predictions_dir / "submission.csv", index=False)
     pd.DataFrame({"CoilID": test["CoilID"], "proba": proba, "Y": pred}).to_csv(
         predictions_dir / "test_predictions.csv", index=False
     )
-
-    canary_mask = test["CoilID"].isin(CANARY_COILS)
-    canary_preds = {
-        int(k): int(v) for k, v in zip(
-            test.loc[canary_mask, "CoilID"].astype(int),
-            pred[canary_mask.to_numpy()],
-        )
-    }
-    predict_meta = {
-        "threshold": threshold,
-        "threshold_strategy": meta.get("threshold_strategy"),
-        "test_positives": int((pred == 1).sum()),
-        "canary_predictions": canary_preds,
-    }
+    predict_meta = {"k": k, "effective_threshold": eff_t, "test_positives": int(pred.sum())}
     save_json(predictions_dir / "predict_meta.json", predict_meta)
-
     if (run_dir / "metrics.json").is_file():
         metrics = load_json(run_dir / "metrics.json")
         metrics["test_positives"] = predict_meta["test_positives"]
         save_json(run_dir / "metrics.json", metrics)
 
     copy_to_latest_summary(METHOD_DIR, run_dir)
-    print(f"Test positives: {predict_meta['test_positives']} / {len(pred)}")
-    print(f"Canary: {canary_preds}")
+    print(f"Test positives: {predict_meta['test_positives']}")
 
 
 if __name__ == "__main__":

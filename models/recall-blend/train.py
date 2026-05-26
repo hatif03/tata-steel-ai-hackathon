@@ -1,4 +1,4 @@
-"""Equal-weight XGB + LightGBM + CatBoost with recall-first threshold."""
+"""50/50 blend of sklearn-recall trio and LightGBM with recall-oriented threshold."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
+from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import average_precision_score, classification_report
 from sklearn.model_selection import StratifiedKFold
-from xgboost import XGBClassifier
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -31,9 +31,7 @@ from utils.run_artifacts import (
 from utils.tabular_features import feature_names, to_frame
 from utils.threshold_tuning import (
     apply_threshold,
-    apply_top_k,
     format_result,
-    select_recall_oriented_threshold,
     select_threshold_by_strategy,
 )
 
@@ -41,36 +39,38 @@ METHOD_DIR = Path(__file__).resolve().parent
 RANDOM_STATE = 42
 N_SPLITS = 5
 FEATURES = feature_names()
-MODEL_NAMES = ("xgb", "lgbm", "catboost")
-BLEND_WEIGHTS = {"xgb": 1 / 3, "lgbm": 1 / 3, "catboost": 1 / 3}
+SKLEARN_NAMES = ("rf", "et", "gbm")
+CLASS_WEIGHT = {0: 1, 1: 30}
+SKLEARN_BLEND = {n: 1 / 3 for n in SKLEARN_NAMES}
+BLEND_WEIGHTS = {"sklearn": 0.5, "lgbm": 0.5}
 
-XGB_PARAMS = dict(
-    n_estimators=500, max_depth=4, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
-    objective="binary:logistic", eval_metric="logloss", random_state=RANDOM_STATE, n_jobs=-1,
-)
 LGBM_PARAMS = dict(
-    n_estimators=500, max_depth=4, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
-    objective="binary", random_state=RANDOM_STATE, n_jobs=-1, verbose=-1,
+    n_estimators=500,
+    max_depth=4,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective="binary",
+    random_state=RANDOM_STATE,
+    n_jobs=-1,
+    verbose=-1,
 )
-CATBOOST_PARAMS = dict(
-    iterations=500, depth=4, learning_rate=0.05, subsample=0.8, random_seed=RANDOM_STATE,
-    verbose=0, allow_writing_files=False, auto_class_weights="Balanced",
-)
 
 
-def clone_model(name: str, scale_pos_weight: float):
-    if name == "xgb":
-        return XGBClassifier(**XGB_PARAMS, scale_pos_weight=scale_pos_weight)
-    if name == "lgbm":
-        return LGBMClassifier(**LGBM_PARAMS, scale_pos_weight=scale_pos_weight)
-    return CatBoostClassifier(**CATBOOST_PARAMS)
-
-
-CANARY_COILS = (654, 806, 532, 958, 1187)
-
-
-def canary_indices(coil_ids: np.ndarray) -> list[int]:
-    return [int(i) for i, c in enumerate(coil_ids) if int(c) in CANARY_COILS]
+def clone_sklearn(name: str):
+    if name == "rf":
+        return RandomForestClassifier(
+            n_estimators=500, max_depth=8, class_weight=CLASS_WEIGHT,
+            random_state=RANDOM_STATE, n_jobs=-1,
+        )
+    if name == "et":
+        return ExtraTreesClassifier(
+            n_estimators=500, max_depth=8, class_weight=CLASS_WEIGHT,
+            random_state=RANDOM_STATE, n_jobs=-1,
+        )
+    return GradientBoostingClassifier(
+        n_estimators=300, max_depth=4, learning_rate=0.05, random_state=RANDOM_STATE,
+    )
 
 
 def main() -> None:
@@ -79,11 +79,9 @@ def main() -> None:
     parser.add_argument("--run-id", type=str, default=None)
     parser.add_argument(
         "--threshold-strategy",
-        choices=("auto", "forum_fixed", "target_test_positives", "target_rate", "top_k_33"),
-        default="auto",
-        help="forum_fixed uses t=0.05; top_k_33 uses rank-based K=33",
+        choices=("target_rate", "target_test_positives", "auto"),
+        default="target_rate",
     )
-    parser.add_argument("--top-k", type=int, default=33, help="K for top_k_* strategies")
     args = parser.parse_args()
 
     run_dir = create_run_dir(METHOD_DIR, args.run_id)
@@ -93,75 +91,89 @@ def main() -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     train = pd.read_csv(args.data_dir / "train.csv")
-    X = to_frame(train)
+    X_df = to_frame(train)
+    X_raw = X_df.values
     y = train["Y"].astype(int).values
     coil_ids = train["CoilID"].values
     scale_pos_weight = (y == 0).sum() / max((y == 1).sum(), 1)
     majority_baseline = float((y == 0).mean())
+    lgbm_params = {**LGBM_PARAMS, "scale_pos_weight": scale_pos_weight}
 
-    oof = {n: np.zeros(len(y)) for n in MODEL_NAMES}
+    oof_sklearn = {n: np.zeros(len(y)) for n in SKLEARN_NAMES}
+    oof_lgbm = np.zeros(len(y))
     skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
     fold_pr_aucs: list[float] = []
 
-    for tr_idx, va_idx in skf.split(X, y):
-        for name in MODEL_NAMES:
-            model = clone_model(name, scale_pos_weight)
-            model.fit(X.iloc[tr_idx], y[tr_idx])
-            oof[name][va_idx] = model.predict_proba(X.iloc[va_idx])[:, 1]
-        blend = sum(BLEND_WEIGHTS[n] * oof[n][va_idx] for n in MODEL_NAMES)
-        fold_pr_aucs.append(float(average_precision_score(y[va_idx], blend)))
+    for tr_idx, va_idx in skf.split(X_raw, y):
+        imp = SimpleImputer(strategy="median")
+        X_tr = imp.fit_transform(X_raw[tr_idx])
+        X_va = imp.transform(X_raw[va_idx])
+        X_tr_lgb = X_df.iloc[tr_idx]
+        X_va_lgb = X_df.iloc[va_idx]
 
-    oof_blend = sum(BLEND_WEIGHTS[n] * oof[n] for n in MODEL_NAMES)
-    strategy = args.threshold_strategy
-    if strategy == "top_k_33":
-        strategy = f"top_k_{args.top_k}"
-    if args.threshold_strategy == "auto":
-        thresh = select_recall_oriented_threshold(y, oof_blend)
+        for name in SKLEARN_NAMES:
+            model = clone_sklearn(name)
+            model.fit(X_tr, y[tr_idx])
+            oof_sklearn[name][va_idx] = model.predict_proba(X_va)[:, 1]
+
+        lgbm = LGBMClassifier(**lgbm_params)
+        lgbm.fit(X_tr_lgb, y[tr_idx])
+        oof_lgbm[va_idx] = lgbm.predict_proba(X_va_lgb)[:, 1]
+
+        sk_blend = sum(SKLEARN_BLEND[n] * oof_sklearn[n][va_idx] for n in SKLEARN_NAMES)
+        fold_blend = BLEND_WEIGHTS["sklearn"] * sk_blend + BLEND_WEIGHTS["lgbm"] * oof_lgbm[va_idx]
+        fold_pr_aucs.append(float(average_precision_score(y[va_idx], fold_blend)))
+
+    oof_sklearn_blend = sum(SKLEARN_BLEND[n] * oof_sklearn[n] for n in SKLEARN_NAMES)
+    oof_blend = BLEND_WEIGHTS["sklearn"] * oof_sklearn_blend + BLEND_WEIGHTS["lgbm"] * oof_lgbm
+
+    if args.threshold_strategy == "target_rate":
+        thresh = select_threshold_by_strategy(y, oof_blend, "target_rate")
     else:
-        thresh = select_threshold_by_strategy(y, oof_blend, strategy)
+        thresh = select_threshold_by_strategy(y, oof_blend, "auto")
+
     print(format_result(thresh))
-    if thresh.strategy.startswith("top_k_"):
-        k = int(thresh.strategy.split("_")[-1])
-        oof_pred, _ = apply_top_k(oof_blend, k, force_positive_idx=canary_indices(coil_ids))
-    else:
-        oof_pred = apply_threshold(oof_blend, thresh.threshold)
+    oof_pred = apply_threshold(oof_blend, thresh.threshold)
 
     pd.DataFrame(
         {
             "CoilID": coil_ids,
             "y_true": y,
-            "oof_xgb": oof["xgb"],
-            "oof_lgbm": oof["lgbm"],
-            "oof_catboost": oof["catboost"],
+            "oof_sklearn": oof_sklearn_blend,
+            "oof_lgbm": oof_lgbm,
             "oof_blend": oof_blend,
             "oof_pred": oof_pred,
         }
     ).to_csv(run_dir / "oof_predictions.csv", index=False)
 
-    final_models = {}
-    for name in MODEL_NAMES:
-        model = clone_model(name, scale_pos_weight)
-        model.fit(X, y)
-        final_models[name] = model
+    imp_full = SimpleImputer(strategy="median")
+    X_full = imp_full.fit_transform(X_raw)
+    joblib.dump(imp_full, artifacts_dir / "imputer.joblib")
+    for name in SKLEARN_NAMES:
+        model = clone_sklearn(name)
+        model.fit(X_full, y)
+        joblib.dump(model, artifacts_dir / f"{name}_model.joblib")
 
-    final_models["xgb"].save_model(str(artifacts_dir / "xgb_model.json"))
-    joblib.dump(final_models["lgbm"], artifacts_dir / "lgbm_model.joblib")
-    final_models["catboost"].save_model(str(artifacts_dir / "catboost_model.cbm"))
+    final_lgbm = LGBMClassifier(**lgbm_params)
+    final_lgbm.fit(X_df, y)
+    joblib.dump(final_lgbm, artifacts_dir / "lgbm_model.joblib")
 
     meta = {
-        "method": "gbm-recall",
+        "method": "recall-blend",
         "threshold": thresh.threshold,
         "threshold_strategy": thresh.strategy,
-        "top_k": args.top_k if thresh.strategy.startswith("top_k_") else None,
         "blend_weights": BLEND_WEIGHTS,
+        "sklearn_blend_weights": SKLEARN_BLEND,
+        "class_weight": CLASS_WEIGHT,
         "features": FEATURES,
+        "lgbm_params": lgbm_params,
     }
     joblib.dump(meta, artifacts_dir / "meta.joblib")
     write_artifacts_manifest(artifacts_dir)
 
     report = classification_report(y, oof_pred, output_dict=True, zero_division=0)
     metrics = {
-        "method": "gbm-recall",
+        "method": "recall-blend",
         "oof_pr_auc": float(average_precision_score(y, oof_blend)),
         "oof_accuracy": thresh.accuracy,
         "oof_recall": thresh.recall,
@@ -172,11 +184,12 @@ def main() -> None:
         "classification_report": report,
         "train_rows": len(y),
         "blend_weights": BLEND_WEIGHTS,
+        "prior_best_lb_score": 7.92453,
     }
     save_metrics(run_dir, metrics)
     save_run_config(run_dir, {"blend_weights": BLEND_WEIGHTS, "threshold": thresh.to_dict()})
 
-    plot_pr_curve(y, oof_blend, plots_dir / "oof_pr_curve.png", "OOF blend PR")
+    plot_pr_curve(y, oof_blend, plots_dir / "oof_pr_curve.png", "OOF recall-blend PR")
     plot_threshold_sweep(
         y, oof_blend, plots_dir / "threshold_sweep.png",
         best_threshold=thresh.threshold, majority_baseline=majority_baseline,

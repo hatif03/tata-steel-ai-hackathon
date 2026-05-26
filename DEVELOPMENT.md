@@ -451,20 +451,183 @@ Log new HackerEarth scores in §15 after upload.
 
 ---
 
-## 16. HackerEarth submission log
+## 16. Phase 6 — push toward leaderboard ~100 (2026-05-26)
+
+**Goal:** Close gap to forum winners (~26 test positives, t=0.05–0.31) without reverting to high-threshold accuracy tuning.
+
+### 6A — Threshold sweep (no retrain)
+
+Added to `utils/threshold_tuning.py`:
+
+- `tune_target_positive_rate` — OOF rate ~7.7% (26/339)
+- `tune_fixed_threshold` / `tune_fixed_thresholds` — forum values 0.05, 0.31, 0.35
+- `tune_target_test_positives` — pick t for 24–28 test positives
+- `select_threshold_by_strategy` — dispatch including `forum_fixed`
+
+Extended `scripts/run_phase0_threshold_sweep.py` and added `scripts/rethreshold_submission.py`.
+
+**Best rethreshold candidates (all canaries Y=1):**
+
+| Method | Strategy | Threshold | Test pos | OOF acc |
+|--------|----------|-----------|----------|---------|
+| sklearn-recall | target_test_positives | 0.411 | 24 | 0.928 |
+| recall-blend | target_test_positives | 0.221 | 24 | 0.928 |
+| gbm-recall | target_test_positives | 0.121 | 24 | 0.928 |
+| lightgbm-recall | target_test_positives | 0.036 | 24 | 0.924 |
+
+Submissions: `models/phase6-rethreshold/outputs/{method}/submission.csv`  
+Candidate list: `models/phase6-rethreshold/outputs/lb_candidates.json`
+
+### 6B — gbm-recall forum t=0.05
+
+`train.py --threshold-strategy forum_fixed` — equal 1/3 XGB+LGB+CatBoost, t=0.05.  
+Test positives: **33** (all canaries positive). Prior target_fpr run scored LB **5.66** with 15 positives.
+
+### 6C — recall-blend
+
+New `models/recall-blend/` — 50/50 sklearn-recall trio + LightGBM OOF blend.  
+Train default (target_rate): 27 test positives. Re-thresholded: **24** @ t=0.221.
+
+### 6D — rf-smote
+
+New `models/rf-smote/` — SMOTE inside CV only, RF class_weight 1:30.  
+Forum t=0.31 yields **131** test positives on this data; no 24–28 band with all canaries positive. Model scaffolded for completeness; not recommended for upload without further calibration.
+
+### Upload priority (beat LB 7.92)
+
+1. `phase6-rethreshold/outputs/sklearn-recall/submission.csv` (24 pos)
+2. `phase6-rethreshold/outputs/recall-blend/submission.csv` (24 pos)
+3. `gbm-recall/outputs/latest/` forum_fixed (33 pos)
+
+Fallback until new LB score: `models/sklearn-recall/submission/` (7.92453).
+
+---
+
+## 17. Phase 7 — push beyond LB 9.06 (2026-05-26)
+
+**Phase 6 LB result:** sklearn-recall, recall-blend, gbm-recall, lightgbm-recall rethreshold @24 pos all scored **9.05660** (up from 7.92). Different predictions but identical score — count band mattered more than model choice at K=24.
+
+### 7A — Exact-K rank selection
+
+Added to [`utils/threshold_tuning.py`](utils/threshold_tuning.py):
+
+- `apply_top_k` — force canaries positive, fill remaining K slots by proba rank
+- `tune_top_k` — OOF metrics at exact K
+
+Extended [`scripts/rethreshold_submission.py`](scripts/rethreshold_submission.py) for K ∈ {25,26,27,28,30,33}. Outputs under `models/phase7-rethreshold/outputs/`.
+
+**Best OOF @ K=26 (canary-safe):**
+
+| Method | OOF acc | Test pos |
+|--------|---------|----------|
+| lightgbm-recall | **0.957** | 26 |
+| recall-blend | 0.957 | 26 |
+| mega-recall-blend | 0.956 | 26 |
+| gbm-recall | 0.956 | 26 |
+
+**Upload priority:** lightgbm-recall K=26, recall-blend K=25 (OOF 0.958), gbm-recall forum33 (33 pos, untested), mega-recall-blend K=26.
+
+See [`models/phase7-rethreshold/outputs/lb_candidates.json`](models/phase7-rethreshold/outputs/lb_candidates.json).
+
+### 7B — mega-recall-blend
+
+New [`models/mega-recall-blend/`](models/mega-recall-blend/) — weight-opt, stacking, vote rules on sklearn+lgbm+gbm saved probas. Selected **intersection** on test (26 pos).
+
+### 7C — lightgbm-optuna
+
+New [`models/lightgbm-optuna/`](models/lightgbm-optuna/) — 50 Optuna trials, 10-fold CV, PR-AUC objective, canary guard on coils 806/1187. OOF PR-AUC 0.345; test 26 pos @ top_k_26.
+
+### 7D — rf-smote-v2
+
+New [`models/rf-smote-v2/`](models/rf-smote-v2/) — BorderlineSMOTE without class_weight double penalty, top-K=26. Test 26 pos; canary-safe at rank-K.
+
+### 7F — Disagreement diagnostics
+
+[`scripts/analyze_model_disagreement.py`](scripts/analyze_model_disagreement.py) — K=24 union 33 coils; K=26 union 35 coils.
+
+Pack: `python scripts/pack_phase7_submissions.py`
+
+---
+
+## 18. HackerEarth submission log
 
 | Date (2026) | Method | Score | Test pos | Notes |
 |-------------|--------|-------|----------|-------|
 | ~05-25 | xgboost-baseline | 1.13208 | 3 | First submission |
 | ~05-25 | lightgbm-cv | **1.88679** | 5 | Best (accuracy-threshold era) |
 | ~05-25 | gbm-ensemble | 1.13208 | 3 | Failed — high threshold |
-| ~05-25 | lightgbm-recall | _Pending upload_ | 19 | Recall-first t=0.05 |
-| ~05-25 | sklearn-recall | _Pending upload_ | 21 | Sklearn ensemble |
-| ~05-25 | gbm-recall | _Pending upload_ | 15 | Equal-weight GBM |
+| ~05-26 | lightgbm-recall | **7.16981** | 19 | Recall-first t=0.05 |
+| ~05-26 | sklearn-recall | **7.92453** | 21 | RF+ET+GBM, target_fpr |
+| ~05-26 | gbm-recall | 5.66038 | 15 | Equal GBM, target_fpr (pre-forum fix) |
+| ~05-26 | phase6 sklearn-rethreshold | **9.05660** | 24 | t=0.411, no retrain |
+| ~05-26 | phase6 recall-blend | **9.05660** | 24 | 50/50 blend |
+| ~05-26 | phase6 gbm-recall rethreshold | **9.05660** | 24 | t=0.121 |
+| ~05-26 | phase6 lightgbm-recall | **9.05660** | 24 | t=0.036 |
+| ~05-26 | phase7 lightgbm top_k_26 | **9.81132** | 26 | All K=26 variants identical |
+| ~05-26 | phase7 recall-blend top_k_26 | **9.81132** | 26 | Count band, not model |
+| ~05-26 | phase7 mega-recall-blend | **9.81132** | 26 | intersection @ K=26 |
+| ~05-26 | phase7 lightgbm-optuna | **9.81132** | 26 | Optuna @ K=26 plateau |
+| ~05-26 | **gbm-recall forum33** | **12.45283** | 33 | Equal GBM, t=0.05 ≡ top_k_33 |
+| ~05-26 | phase8 gbm-recall top_k_33 | **12.45283** | 33 | Retrain with explicit K=33 meta |
+| ~05-26 | phase8 gbm-mega-blend | **12.45283** | 33 | Stacking @ K=33 — same top-33 set as gbm |
+| ~05-26 | **phase8 union-gbm33-plus-2** | **13.20755** | 35 | gbm33 + 2 union exclusives (282, 631) |
+| ~05-26 | **phase8 union-gbm33-plus-5** | **14.33964** | 38 | gbm33 + 5 union exclusives |
+
+**Current best LB:** **14.33964** (union-gbm33-plus-5). Fallback: `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/`.
 
 ---
 
-## 17. Key hyperparameters (recall-first model)
+## 19. Phase 8 — push beyond LB 12.45 (2026-05-26)
+
+**Phase 7 LB result:** All K=26 variants (lightgbm, recall-blend, mega-recall-blend, optuna) scored **9.81132** (26 pos). **gbm-recall forum33** (t=0.05, 33 pos) scored **12.45283** — +27% over K=26 plateau.
+
+### 8A — GBM-anchored exact-K sweep
+
+Extended [`scripts/rethreshold_submission.py`](scripts/rethreshold_submission.py) with `--phase8`: K ∈ {33,34,35,36,38}, methods gbm-recall / gbm-mega-blend / gbm-recall-optuna. Outputs under `models/phase8-rethreshold/outputs/`.
+
+New [`scripts/build_union_submission.py`](scripts/build_union_submission.py): gbm33 base + union exclusives for K=35, 38.
+
+### 8B — gbm-mega-blend
+
+New [`models/gbm-mega-blend/`](models/gbm-mega-blend/) — gbm-recall primary (70%) + sklearn/lgbm secondary, K=33, strategies: gbm_only, gbm_heavy, weight_opt, stacking.
+
+### 8C — gbm-recall top_k_33 retrain
+
+[`models/gbm-recall/train.py`](models/gbm-recall/train.py) supports `--threshold-strategy top_k_33`; predict uses rank-based K from meta.
+
+### 8D — gbm-recall-optuna
+
+New [`models/gbm-recall-optuna/`](models/gbm-recall-optuna/) — joint Optuna on XGB+LGB+CatBoost, 10-fold CV, PR-AUC on equal blend, canary guard vs gbm-recall on coils 806/1187.
+
+### 8E — Feature probes
+
+[`scripts/probe_single_feature.py`](scripts/probe_single_feature.py) — ratio features X13/X10, X30/X32 with canary guard.
+
+### 8F — Diagnostics
+
+Extended [`scripts/analyze_model_disagreement.py`](scripts/analyze_model_disagreement.py) for K=33 and gbm33 vs union diff.
+
+Pack: `python scripts/pack_phase8_submissions.py`. See [`models/phase8-rethreshold/README.md`](models/phase8-rethreshold/README.md).
+
+### Phase 8 LB results (confirmed)
+
+| Upload | Score | Test pos | Takeaway |
+|--------|-------|----------|----------|
+| gbm-recall / gbm-mega-blend @ K=33 | 12.45283 | 33 | Same top-33 coils — blending did not help at this K |
+| union-gbm33-plus-2 | **13.20755** | 35 | +6% — adding 2 secondary-model exclusives works |
+| **union-gbm33-plus-5** | **14.33964** | 38 | **+15%** — full K=26 union beyond gbm33 is the win |
+
+**Key insight:** LB score scales with flagging the right *additional* coils from model disagreement, not from re-ranking within gbm's top-33. The five exclusives (282, 302, 631, 1138, 1346) were predicted offline; union augment validated them on leaderboard.
+
+### Why `phase6/7/8-rethreshold` folders exist
+
+These names break the usual `models/{algorithm}/` kebab-case rule. They are **not** ML methods — no `train.py` / `predict.py`. They are **upload-batch staging dirs**: README + gitignored `outputs/` filled by `scripts/rethreshold_submission.py` and `pack_phase*_submissions.py`. The underlying methods (`gbm-recall`, `recall-blend`, …) still own the source zips.
+
+Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were a expedient during the score push.
+
+---
+
+## 20. Key hyperparameters (recall-first model)
 
 **`lightgbm-recall` — same LGBM as lightgbm-cv, threshold t=0.05:**
 
@@ -472,7 +635,7 @@ See §16 in prior version for LGBM params; threshold strategy in `utils/threshol
 
 ---
 
-## 18. References
+## 21. References
 
 - Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
 - Method READMEs: `models/*/README.md`

@@ -70,17 +70,19 @@ python .cursor/skills/tata-steel-submission/scripts/validate_submission.py model
 
 ```
 dataset/                  # train.csv, test.csv (committed)
-models/{method}/          # one folder per ML approach
+models/{method}/          # one folder per ML approach (train.py, predict.py, …)
   submission/
     approach.txt          # committed — edit before upload
-    README.md             # committed
     submission.csv        # generated (gitignored) — run pack.py
     *-hackerearth.zip     # generated (gitignored) — run pack.py
   outputs/                # generated (gitignored) — run train.py
 utils/                    # shared helpers (committed)
+scripts/                  # cross-method tools (rethreshold, pack batches, EDA)
 scripts/setup.ps1         # create .venv (gitignored)
 .cursor/skills/           # Cursor agent skills (committed)
 ```
+
+**Exception — `models/phase*-rethreshold/`:** Not full methods. Upload-batch staging only (README + gitignored `outputs/`). See [`models/phase8-rethreshold/README.md`](models/phase8-rethreshold/README.md#why-is-this-folder-called-phase8-rethreshold).
 
 See `models/xgboost-baseline/README.md` for method details.
 
@@ -90,17 +92,16 @@ Full log of experiments, leaderboard scores, failures, and lessons learned:
 
 **[DEVELOPMENT.md](DEVELOPMENT.md)** — chronology, metrics, recall-first evolution (Phase 5), upload order.
 
-### Recall-first submissions (upload to HackerEarth)
+### Current best submission
 
-| Method | Test positives | Path |
-|--------|----------------|------|
-| **lightgbm-recall** (recommended) | 19 | `models/lightgbm-recall/submission/` |
-| sklearn-recall | 21 | `models/sklearn-recall/submission/` |
-| gbm-recall | 15 | `models/gbm-recall/submission/` |
+| LB score | Method | Test positives | Path |
+|----------|--------|----------------|------|
+| **14.33964** | union-gbm33-plus-5 | 38 | `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/` |
+
+Phase 8 documentation: [`models/phase8-rethreshold/README.md`](models/phase8-rethreshold/README.md). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18.
 
 ```powershell
-python scripts/check_submission_vs_baseline.py models/lightgbm-recall/submission/submission.csv
-python models/lightgbm-recall/pack.py
+python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/submission.csv --max-positives 40
 ```
 
 ## What gets committed vs generated

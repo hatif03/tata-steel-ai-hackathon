@@ -1,0 +1,13 @@
+Tata Steel AI Hackathon — mega-recall-blend
+
+Method: combine saved OOF/test probabilities from sklearn-recall, lightgbm-recall,
+and gbm-recall. Strategies: weight optimization (scipy), LogisticRegression stacking,
+majority vote, union, intersection. Best strategy selected by OOF accuracy at top-K
+with canary coils {654,806,532,958,1187} forced positive.
+
+Default K=26. Libraries: scipy, scikit-learn, pandas, numpy, joblib.
+
+Reproduce:
+  python models/mega-recall-blend/train.py --k 26
+  python models/mega-recall-blend/predict.py
+  python models/mega-recall-blend/pack.py

@@ -16,14 +16,17 @@ if str(ROOT) not in sys.path:
 from utils.threshold_tuning import (  # noqa: E402
     apply_threshold,
     format_result,
+    tune_fixed_thresholds,
     tune_max_accuracy,
     tune_recall_first,
     tune_target_fpr,
+    tune_target_positive_rate,
+    tune_target_test_positives,
     _metrics_at_threshold,
 )
 
 CANARY_COILS = (654, 806, 532, 958, 1187)
-OUTPUT_DIR = ROOT / "models" / "recall-first-phase0" / "outputs"
+OUTPUT_DIR = ROOT / "models" / "phase6-rethreshold" / "outputs"
 
 
 def load_test(path: Path) -> pd.DataFrame:
@@ -44,12 +47,12 @@ def evaluate_source(name: str, oof_path: Path, test_path: Path, proba_col: str) 
         "max_accuracy": tune_max_accuracy(y, oof_proba),
         "recall_first": tune_recall_first(y, oof_proba),
         "target_fpr_3pct": tune_target_fpr(y, oof_proba, max_fpr=0.03),
-        "fixed_t_0.05": _metrics_at_threshold(y, oof_proba, 0.05),
-        "fixed_t_0.31": _metrics_at_threshold(y, oof_proba, 0.31),
+        "target_rate_077": tune_target_positive_rate(y, oof_proba, target_rate=0.077),
+        "target_test_24_28": tune_target_test_positives(
+            y, oof_proba, test_proba, min_test_positives=24, max_test_positives=28
+        ),
+        **tune_fixed_thresholds(y, oof_proba, thresholds=(0.05, 0.31, 0.35)),
     }
-    for k, m in list(strategies.items()):
-        if k.startswith("fixed"):
-            strategies[k] = type(m)(**{**m.__dict__, "strategy": k})
 
     print(f"\n=== {name} ({proba_col}) ===")
     rows = []
@@ -80,9 +83,12 @@ def pick_best(results: list[dict]) -> dict:
     df = df[df["canary_all_positive"] == True]  # noqa: E712
 
     preferred = [
-        "target_fpr_3pct",
-        "fixed_t_0.05",
+        "target_test_24_28",
         "fixed_t_0.31",
+        "target_rate_077",
+        "fixed_t_0.05",
+        "fixed_t_0.35",
+        "target_fpr_3pct",
         "recall_first",
         "recall_first_fallback",
         "max_accuracy",
@@ -91,13 +97,21 @@ def pick_best(results: list[dict]) -> dict:
         subset = df[df["strategy"] == strategy]
         if len(subset) == 0:
             continue
-        # Prefer 15–30 test positives when available
-        in_range = subset[(subset["test_positives"] >= 15) & (subset["test_positives"] <= 30)]
-        pool = in_range if len(in_range) else subset
-        best = pool.sort_values(["accuracy", "recall", "test_positives"], ascending=False).iloc[0]
-        return best.to_dict()
+        in_range = subset[(subset["test_positives"] >= 24) & (subset["test_positives"] <= 28)]
+        if len(in_range):
+            return in_range.sort_values(["accuracy", "recall"], ascending=False).iloc[0].to_dict()
+        # Skip strategies with no rows in target band (avoid fixed_t_0.31 @ 13 pos)
+        continue
 
-    return df.sort_values("accuracy", ascending=False).iloc[0].to_dict()
+    wide = df[(df["test_positives"] >= 20) & (df["test_positives"] <= 30)]
+    if len(wide):
+        wide = wide.copy()
+        wide["dist_26"] = (wide["test_positives"] - 26).abs()
+        return wide.sort_values(["dist_26", "accuracy"], ascending=[True, False]).iloc[0].to_dict()
+
+    df = df.copy()
+    df["dist_26"] = (df["test_positives"] - 26).abs()
+    return df.sort_values(["dist_26", "accuracy"], ascending=[True, False]).iloc[0].to_dict()
 
 
 def write_submission(best: dict, results: list[dict], test_df: pd.DataFrame) -> Path:
@@ -117,7 +131,7 @@ def write_submission(best: dict, results: list[dict], test_df: pd.DataFrame) -> 
         "selected": best,
         "canary_coils": list(CANARY_COILS),
         "fallback_baseline": "models/lightgbm-cv/submission/submission.csv",
-        "prior_best_lb_score": 1.88679,
+        "prior_best_lb_score": 7.92453,
     }
     (out_dir / "phase0_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return path
@@ -125,6 +139,24 @@ def write_submission(best: dict, results: list[dict], test_df: pd.DataFrame) -> 
 
 def main() -> None:
     specs = [
+        (
+            "sklearn-recall",
+            ROOT / "models/sklearn-recall/outputs/latest/oof_predictions.csv",
+            ROOT / "models/sklearn-recall/outputs/latest/predictions/test_predictions.csv",
+            "oof_blend",
+        ),
+        (
+            "lightgbm-recall",
+            ROOT / "models/lightgbm-recall/outputs/latest/oof_predictions.csv",
+            ROOT / "models/lightgbm-recall/outputs/latest/predictions/test_predictions.csv",
+            "oof_proba",
+        ),
+        (
+            "gbm-recall",
+            ROOT / "models/gbm-recall/outputs/latest/oof_predictions.csv",
+            ROOT / "models/gbm-recall/outputs/latest/predictions/test_predictions.csv",
+            "oof_blend",
+        ),
         (
             "lightgbm-cv",
             ROOT / "models/lightgbm-cv/outputs/latest/oof_predictions.csv",

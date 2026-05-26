@@ -1,0 +1,18 @@
+Tata Steel AI Hackathon — recall-blend
+======================================
+
+Method: 50/50 blend of sklearn-recall (RF+ExtraTrees+GBM, class_weight {0:1, 1:30})
+and LightGBM (scale_pos_weight) on shared tabular features from utils/tabular_features.py.
+
+Cross-validation: StratifiedKFold n_splits=5, shuffle=True, random_state=42.
+Median imputation applied inside each CV fold for sklearn models only.
+
+Threshold: target_rate ~7.7% OOF positives (forum pattern ~26/339). Optional rethreshold
+via scripts/rethreshold_submission.py targeting 24–28 test positives.
+
+Libraries: scikit-learn, lightgbm, pandas, numpy, joblib.
+
+Reproduce:
+  python models/recall-blend/train.py --data-dir dataset
+  python models/recall-blend/predict.py --data-dir dataset
+  python models/recall-blend/pack.py

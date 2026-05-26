@@ -139,6 +139,7 @@ def pack_method(
     method_dir: Path,
     *,
     run_dir: Path | None = None,
+    submission_csv: Path | None = None,
     archive_format: Literal["zip", "tar.gz"] = "zip",
     skip_validate: bool = False,
     scaffold_approach: bool = True,
@@ -152,10 +153,13 @@ def pack_method(
         scaffold_approach_txt(method_dir)
 
     run_dir = run_dir or get_latest_run_dir(method_dir)
-    run_submission = run_dir / "predictions" / "submission.csv"
+    if submission_csv is not None:
+        run_submission = submission_csv.resolve()
+    else:
+        run_submission = run_dir / "predictions" / "submission.csv"
     if not run_submission.is_file():
         raise FileNotFoundError(
-            f"No submission.csv in {run_dir / 'predictions'}. "
+            f"No submission.csv at {run_submission}. "
             f"Run: python models/{method_dir.name}/predict.py"
         )
 
@@ -194,6 +198,7 @@ def pack_method(
             "packed_at_utc": datetime.now(timezone.utc).isoformat(),
             "run_dir": str(run_dir.resolve()),
             "submission_csv": str(dest_submission.resolve()),
+            "source_submission_csv": str(run_submission.resolve()),
             "archive": str(archive_path.resolve()),
             "approach_txt": str(approach_path.resolve()),
             "upload_instructions": {

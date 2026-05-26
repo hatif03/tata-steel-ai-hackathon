@@ -1,0 +1,12 @@
+Tata Steel AI Hackathon — rf-smote-v2
+
+RandomForest + BorderlineSMOTE inside CV folds only (no class_weight double rebalancing).
+Isotonic CalibratedClassifierCV per fold for OOF; final calibrated model on full train.
+Threshold: rank-based top-K (default 26) with canary coils forced positive.
+
+Libraries: imbalanced-learn, scikit-learn, pandas, joblib.
+
+Reproduce:
+  python models/rf-smote-v2/train.py --k 26
+  python models/rf-smote-v2/predict.py
+  python models/rf-smote-v2/pack.py

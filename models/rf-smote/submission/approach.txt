@@ -1,0 +1,18 @@
+Tata Steel AI Hackathon — rf-smote
+==================================
+
+Method: RandomForestClassifier with SMOTE oversampling applied only on training
+folds inside StratifiedKFold CV (leakage-safe imblearn Pipeline).
+
+Preprocessing: median imputation, then SMOTE (k_neighbors=5) on train fold only.
+Model: RandomForest n_estimators=500, max_depth=8, class_weight {0:1, 1:30}.
+
+Threshold: forum fixed t=0.31 (also sweep 0.25–0.35 offline in Phase 6 scripts).
+
+Libraries: imbalanced-learn, scikit-learn, pandas, numpy, joblib.
+
+Reproduce:
+  pip install imbalanced-learn
+  python models/rf-smote/train.py --data-dir dataset
+  python models/rf-smote/predict.py --data-dir dataset
+  python models/rf-smote/pack.py

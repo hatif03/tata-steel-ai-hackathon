@@ -25,6 +25,12 @@ def main() -> None:
     )
     parser.add_argument("--run-dir", type=Path, default=None, help="Use a specific run instead of latest")
     parser.add_argument(
+        "--submission-csv",
+        type=Path,
+        default=None,
+        help="Use this submission.csv instead of latest run predictions",
+    )
+    parser.add_argument(
         "--format",
         choices=("zip", "tar.gz"),
         default="zip",
@@ -49,6 +55,7 @@ def main() -> None:
     archive = pack_method(
         method_dir,
         run_dir=args.run_dir,
+        submission_csv=args.submission_csv,
         archive_format=args.format,
         skip_validate=args.skip_validate,
         scaffold_approach=False,

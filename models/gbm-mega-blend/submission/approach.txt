@@ -1,0 +1,11 @@
+Tata Steel AI Hackathon — gbm-mega-blend
+
+GBM-centric blend: primary signal from gbm-recall equal XGB+LGB+CatBoost probas,
+secondary from sklearn-recall and lightgbm-recall. Default K=33 (forum33 winner).
+
+Strategies: gbm_only, gbm_heavy (0.7/0.15/0.15), scipy weight-opt, LogisticRegression stacking.
+
+Reproduce:
+  python models/gbm-mega-blend/train.py --k 33
+  python models/gbm-mega-blend/predict.py
+  python models/gbm-mega-blend/pack.py

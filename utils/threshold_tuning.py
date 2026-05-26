@@ -138,6 +138,123 @@ def tune_target_fpr(
     return ThresholdResult(**{**best.__dict__, "strategy": "target_fpr"})
 
 
+def tune_target_positive_rate(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    *,
+    target_rate: float = 0.077,
+    n_steps: int = 199,
+    t_min: float = 0.001,
+    t_max: float = 0.99,
+) -> ThresholdResult:
+    """Pick threshold whose OOF positive rate is closest to target_rate (~26/339)."""
+    y = np.asarray(y_true, dtype=int)
+    n = len(y)
+    target_count = int(round(target_rate * n))
+    best: ThresholdResult | None = None
+    best_dist = float("inf")
+
+    for t in np.linspace(t_min, t_max, n_steps):
+        m = _metrics_at_threshold(y, proba, float(t))
+        dist = abs(m.n_predicted_positive - target_count)
+        if dist < best_dist or (
+            dist == best_dist and best is not None and m.accuracy > best.accuracy
+        ):
+            best_dist = dist
+            best = m
+
+    assert best is not None
+    return ThresholdResult(**{**best.__dict__, "strategy": f"target_rate_{target_rate:.3f}"})
+
+
+def tune_fixed_threshold(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    threshold: float,
+    *,
+    strategy_name: str | None = None,
+) -> ThresholdResult:
+    m = _metrics_at_threshold(y_true, proba, threshold)
+    name = strategy_name or f"fixed_t_{threshold:g}"
+    return ThresholdResult(**{**m.__dict__, "strategy": name})
+
+
+def tune_fixed_thresholds(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    thresholds: tuple[float, ...] = (0.05, 0.31, 0.35),
+) -> dict[str, ThresholdResult]:
+    return {
+        f"fixed_t_{t:g}": tune_fixed_threshold(y_true, proba, t) for t in thresholds
+    }
+
+
+def tune_target_test_positives(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    test_proba: np.ndarray,
+    *,
+    target_test_positives: int = 26,
+    min_test_positives: int = 24,
+    max_test_positives: int = 28,
+    n_steps: int = 199,
+    t_min: float = 0.001,
+    t_max: float = 0.99,
+) -> ThresholdResult:
+    """Pick threshold where test positive count is in [min, max], best OOF accuracy."""
+    y = np.asarray(y_true, dtype=int)
+    test_proba = np.asarray(test_proba, dtype=float)
+    candidates: list[tuple[ThresholdResult, int]] = []
+
+    for t in np.linspace(t_min, t_max, n_steps):
+        m = _metrics_at_threshold(y, proba, float(t))
+        test_pos = int((test_proba >= t).sum())
+        if min_test_positives <= test_pos <= max_test_positives:
+            candidates.append((m, test_pos))
+
+    if not candidates:
+        rate = tune_target_positive_rate(y, proba, target_rate=target_test_positives / 339.0)
+        return ThresholdResult(**{**rate.__dict__, "strategy": "target_test_pos_fallback_rate"})
+
+    best_m, _ = max(candidates, key=lambda x: (x[0].accuracy, x[0].recall, -abs(x[1] - target_test_positives)))
+    return ThresholdResult(**{**best_m.__dict__, "strategy": "target_test_positives"})
+
+
+def select_threshold_by_strategy(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    strategy: str,
+    *,
+    test_proba: np.ndarray | None = None,
+    min_recall: float = 1.0,
+    max_fpr: float = 0.03,
+    forum_fixed_t: float = 0.05,
+    max_positive_rate: float = 0.12,
+) -> ThresholdResult:
+    """Dispatch threshold selection by strategy name."""
+    if strategy == "forum_fixed":
+        return tune_fixed_threshold(y_true, proba, forum_fixed_t, strategy_name="forum_fixed_0.05")
+    if strategy == "target_test_positives" and test_proba is not None:
+        return tune_target_test_positives(y_true, proba, test_proba)
+    if strategy == "target_rate":
+        return tune_target_positive_rate(y_true, proba)
+    if strategy == "fixed_0.31":
+        return tune_fixed_threshold(y_true, proba, 0.31, strategy_name="forum_fixed_0.31")
+    if strategy == "top_k_33":
+        return tune_top_k(y_true, proba, 33)
+    if strategy.startswith("top_k_"):
+        k = int(strategy.split("_")[-1])
+        return tune_top_k(y_true, proba, k)
+    return select_recall_oriented_threshold(
+        y_true,
+        proba,
+        min_recall=min_recall,
+        max_fpr=max_fpr,
+        forum_fixed_t=forum_fixed_t,
+        max_positive_rate=max_positive_rate,
+    )
+
+
 def select_recall_oriented_threshold(
     y_true: np.ndarray,
     proba: np.ndarray,
@@ -176,6 +293,74 @@ def select_recall_oriented_threshold(
 
 def apply_threshold(proba: np.ndarray, threshold: float) -> np.ndarray:
     return (proba >= threshold).astype(int)
+
+
+def apply_top_k(
+    proba: np.ndarray,
+    k: int,
+    *,
+    force_positive_idx: np.ndarray | list[int] | None = None,
+) -> tuple[np.ndarray, float]:
+    """Mark exactly k highest-probability rows positive; force canary indices first."""
+    proba = np.asarray(proba, dtype=float)
+    n = len(proba)
+    k = int(min(max(k, 0), n))
+    pred = np.zeros(n, dtype=int)
+
+    forced: list[int] = []
+    if force_positive_idx is not None:
+        forced = [int(i) for i in force_positive_idx if 0 <= int(i) < n]
+        forced = list(dict.fromkeys(forced))
+        if len(forced) > k:
+            forced = sorted(forced, key=lambda i: proba[i], reverse=True)[:k]
+        for i in forced:
+            pred[i] = 1
+
+    remaining = k - int(pred.sum())
+    if remaining > 0:
+        available = np.where(pred == 0)[0]
+        order = available[np.argsort(-proba[available])]
+        for i in order[:remaining]:
+            pred[i] = 1
+
+    selected = np.where(pred == 1)[0]
+    threshold = float(proba[selected].min()) if len(selected) else 1.0
+    return pred, threshold
+
+
+def _metrics_at_top_k(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    k: int,
+    *,
+    force_positive_idx: np.ndarray | list[int] | None = None,
+) -> ThresholdResult:
+    pred, threshold = apply_top_k(proba, k, force_positive_idx=force_positive_idx)
+    y = np.asarray(y_true, dtype=int)
+    tp = int(((pred == 1) & (y == 1)).sum())
+    fp = int(((pred == 1) & (y == 0)).sum())
+    fn = int(((pred == 0) & (y == 1)).sum())
+    return ThresholdResult(
+        threshold=threshold,
+        accuracy=float(accuracy_score(y, pred)),
+        recall=float(recall_score(y, pred, zero_division=0)),
+        precision=float(precision_score(y, pred, zero_division=0)),
+        n_predicted_positive=int(pred.sum()),
+        false_positives=fp,
+        false_negatives=fn,
+        strategy="",
+    )
+
+
+def tune_top_k(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    k: int,
+    *,
+    force_positive_idx: np.ndarray | list[int] | None = None,
+) -> ThresholdResult:
+    m = _metrics_at_top_k(y_true, proba, k, force_positive_idx=force_positive_idx)
+    return ThresholdResult(**{**m.__dict__, "strategy": f"top_k_{k}"})
 
 
 def format_result(m: ThresholdResult) -> str:

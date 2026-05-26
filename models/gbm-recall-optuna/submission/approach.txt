@@ -1,0 +1,10 @@
+Tata Steel AI Hackathon — gbm-recall-optuna
+
+Optuna hyperparameter search on equal-weight XGB + LightGBM + CatBoost ensemble.
+10-fold CV, PR-AUC objective on blend, canary guard on test proba for coils 806/1187
+vs gbm-recall baseline. Threshold: top_k_33.
+
+Reproduce:
+  python models/gbm-recall-optuna/train.py --n-trials 30 --k 33
+  python models/gbm-recall-optuna/predict.py
+  python models/gbm-recall-optuna/pack.py
