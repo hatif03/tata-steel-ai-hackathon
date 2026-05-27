@@ -78,6 +78,9 @@ def copy_source_files(method_dir: Path, source_dir: Path) -> list[Path]:
         "submission_pack.py",
         "tabular_features.py",
         "tabular_features_enriched.py",
+        "tabular_features_full_miss.py",
+        "union_augment.py",
+        "threshold_tuning.py",
         "threshold_tuning.py",
     ):
         util = repo_root() / "utils" / util_name

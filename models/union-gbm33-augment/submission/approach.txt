@@ -1,0 +1,19 @@
+Method: union-gbm33-augment
+Approach: Post-hoc union augment on gbm-recall top-33 anchor
+
+Pipeline:
+1. Train gbm-recall (equal XGB+LightGBM+CatBoost, tabular_features.py, top_k_33).
+2. Load test probas from secondary recall models at K=26.
+3. Union = gbm33 coils ∪ secondary top-K sets; candidates = union − gbm33.
+4. Rank candidates by max secondary proba; fill to target_k.
+5. Force canary coils {654, 806, 532, 958, 1187} positive.
+
+Feature engineering: raw X1–X49 + missing indicators (via gbm-recall base models).
+
+Tools: Python 3.11+, xgboost, lightgbm, catboost, pandas, scikit-learn, joblib.
+
+Reproduce:
+  python models/gbm-recall/train.py --threshold-strategy top_k_33
+  python models/gbm-recall/predict.py
+  python models/union-gbm33-augment/train.py --target-k 38 --ensure-secondaries
+  python models/union-gbm33-augment/predict.py

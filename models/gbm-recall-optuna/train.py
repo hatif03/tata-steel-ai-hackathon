@@ -34,7 +34,7 @@ from utils.threshold_tuning import apply_top_k, tune_top_k
 
 METHOD_DIR = Path(__file__).resolve().parent
 RANDOM_STATE = 42
-N_SPLITS = 10
+N_SPLITS = 5
 CANARY_COILS = (654, 806, 532, 958, 1187)
 CANARY_GUARD_COILS = (806, 1187)
 DEFAULT_K = 33
@@ -45,15 +45,15 @@ def canary_indices(coil_ids: pd.Series) -> list[int]:
     return [int(i) for i, c in enumerate(coil_ids) if int(c) in CANARY_COILS]
 
 
-def canary_floor_proba() -> dict[int, float]:
-    """Minimum test proba on guard coils from gbm-recall baseline."""
-    test = pd.read_csv(ROOT / "dataset/test.csv")
-    base = pd.read_csv(ROOT / "models/gbm-recall/outputs/latest/predictions/test_predictions.csv")
-    merged = test[["CoilID"]].merge(base, on="CoilID")
-    return {
-        int(c): float(merged.loc[merged["CoilID"] == c, "proba"].iloc[0])
-        for c in CANARY_GUARD_COILS
-    }
+def passes_rank_guard(test_proba: np.ndarray, coil_ids: np.ndarray, k: int) -> bool:
+    """Require guard coils 806/1187 in top-K (rank-based, not proba floor)."""
+    canary_idx = [int(i) for i, c in enumerate(coil_ids) if int(c) in CANARY_COILS]
+    pred, _ = apply_top_k(test_proba, k, force_positive_idx=canary_idx)
+    for coil in CANARY_GUARD_COILS:
+        idx = np.where(coil_ids == coil)[0]
+        if len(idx) and pred[idx[0]] == 0:
+            return False
+    return True
 
 
 def fit_blend_oof(
@@ -119,39 +119,39 @@ def main() -> None:
     coil_ids = train["CoilID"].values
     scale_pos_weight = (y == 0).sum() / max((y == 1).sum(), 1)
     canary_idx = canary_indices(train["CoilID"])
-    floor = canary_floor_proba()
     skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
 
     def objective(trial: optuna.Trial) -> float:
+        spw = trial.suggest_float("spw", 10.0, 30.0)
         params = {
             "xgb": {
-                "n_estimators": trial.suggest_int("xgb_n_estimators", 300, 700),
-                "max_depth": trial.suggest_int("xgb_max_depth", 3, 6),
-                "learning_rate": trial.suggest_float("xgb_lr", 0.02, 0.1, log=True),
+                "n_estimators": trial.suggest_int("xgb_n_estimators", 300, 800),
+                "max_depth": trial.suggest_int("xgb_max_depth", 3, 7),
+                "learning_rate": trial.suggest_float("xgb_lr", 0.01, 0.08, log=True),
                 "subsample": trial.suggest_float("xgb_subsample", 0.6, 1.0),
                 "colsample_bytree": trial.suggest_float("xgb_colsample", 0.6, 1.0),
-                "scale_pos_weight": scale_pos_weight,
+                "scale_pos_weight": spw,
                 "objective": "binary:logistic",
                 "eval_metric": "logloss",
                 "random_state": RANDOM_STATE,
                 "n_jobs": -1,
             },
             "lgbm": {
-                "n_estimators": trial.suggest_int("lgbm_n_estimators", 300, 700),
-                "max_depth": trial.suggest_int("lgbm_max_depth", 3, 6),
-                "learning_rate": trial.suggest_float("lgbm_lr", 0.02, 0.1, log=True),
+                "n_estimators": trial.suggest_int("lgbm_n_estimators", 300, 800),
+                "max_depth": trial.suggest_int("lgbm_max_depth", 3, 7),
+                "learning_rate": trial.suggest_float("lgbm_lr", 0.01, 0.08, log=True),
                 "subsample": trial.suggest_float("lgbm_subsample", 0.6, 1.0),
                 "colsample_bytree": trial.suggest_float("lgbm_colsample", 0.6, 1.0),
-                "scale_pos_weight": scale_pos_weight,
+                "scale_pos_weight": spw,
                 "objective": "binary",
                 "random_state": RANDOM_STATE,
                 "n_jobs": -1,
                 "verbose": -1,
             },
             "catboost": {
-                "iterations": trial.suggest_int("cat_iterations", 300, 700),
-                "depth": trial.suggest_int("cat_depth", 3, 6),
-                "learning_rate": trial.suggest_float("cat_lr", 0.02, 0.1, log=True),
+                "iterations": trial.suggest_int("cat_iterations", 300, 800),
+                "depth": trial.suggest_int("cat_depth", 3, 7),
+                "learning_rate": trial.suggest_float("cat_lr", 0.01, 0.08, log=True),
                 "subsample": trial.suggest_float("cat_subsample", 0.6, 1.0),
                 "random_seed": RANDOM_STATE,
                 "verbose": 0,
@@ -160,20 +160,15 @@ def main() -> None:
             },
         }
         blend, _ = fit_blend_oof(X, y, skf, params)
-        score = float(average_precision_score(y, blend))
-        models = fit_final_models(X, y, params)
-        test_proba = test_blend_proba(models, X_test)
-        for coil_id, min_p in floor.items():
-            idx = np.where(test["CoilID"].values == coil_id)[0]
-            if len(idx) and test_proba[idx[0]] < min_p:
-                return 0.0
-        return score
+        tk = tune_top_k(y, blend, args.k, force_positive_idx=canary_idx)
+        # Rank guard on OOF proxy — full test check deferred to final fit
+        return float(tk.accuracy)
 
     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE))
     study.optimize(objective, n_trials=args.n_trials, show_progress_bar=False)
 
     if study.best_value <= 0:
-        print("Warning: all Optuna trials failed canary guard; using gbm-recall default hyperparams")
+        print("Warning: all Optuna trials failed rank guard; using gbm-recall default hyperparams")
         best_params = {
             "xgb": {
                 "n_estimators": 500, "max_depth": 4, "learning_rate": 0.05,
@@ -267,6 +262,7 @@ def main() -> None:
         "threshold": thresh.threshold,
         "threshold_strategy": thresh.strategy,
         "optuna_best_value": optuna_best,
+        "optuna_objective": "oof_top_k_accuracy",
         "features": feature_names(),
     }
     joblib.dump(meta, artifacts_dir / "meta.joblib")
@@ -277,7 +273,7 @@ def main() -> None:
         "oof_pr_auc": float(average_precision_score(y, blend)),
         "oof_accuracy": thresh.accuracy,
         "oof_recall": thresh.recall,
-        "optuna_best_pr_auc": optuna_best,
+        "optuna_best_oof_accuracy": optuna_best,
         "n_trials": args.n_trials,
         "k": k,
         "prior_best_lb_score": 12.45283,

@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from utils.tabular_features import build_features, feature_names, to_frame
+from utils.tabular_features_full_miss import build_features as build_full_miss, feature_names as full_miss_names
 
 CANARY_GUARD_COILS = (806, 1187)
 RANDOM_STATE = 42
@@ -142,6 +143,35 @@ def main() -> None:
         )
         status = "KEEP" if guard_ok and pr >= base_pr else "SKIP"
         print(f"{fname}: PR-AUC={pr:.4f} delta={pr - base_pr:+.4f} guard={guard_ok} -> {status}")
+
+    # Full missing-indicator expansion (Phase 9F)
+    X_fm = build_full_miss(train)
+    X_test_fm = build_full_miss(test)
+    fm_oof, _ = train_blend_oof(X_fm, y)
+    fm_pr = float(average_precision_score(y, fm_oof))
+    fm_test = test_blend_proba(X_fm, y, X_test_fm)
+    fm_canary = {}
+    fm_guard = True
+    for coil in CANARY_GUARD_COILS:
+        idx = np.where(test["CoilID"].values == coil)[0]
+        p = float(fm_test[idx[0]])
+        fm_canary[str(coil)] = p
+        if p < floor[coil]:
+            fm_guard = False
+    results.append(
+        {
+            "feature": "full_miss_indicators_all_49",
+            "n_features": len(full_miss_names()),
+            "oof_pr_auc": fm_pr,
+            "oof_pr_auc_delta": fm_pr - base_pr,
+            "canary_proba": fm_canary,
+            "canary_floor": {str(k): v for k, v in floor.items()},
+            "passes_canary_guard": fm_guard,
+            "recommend": fm_guard and fm_pr >= base_pr,
+        }
+    )
+    status = "KEEP" if fm_guard and fm_pr >= base_pr else "SKIP"
+    print(f"full_miss_indicators: PR-AUC={fm_pr:.4f} delta={fm_pr - base_pr:+.4f} guard={fm_guard} -> {status}")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=2), encoding="utf-8")

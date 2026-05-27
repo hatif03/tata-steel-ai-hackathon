@@ -4,7 +4,7 @@ This document records everything done in this repository so far: motivation, ste
 
 **Problem:** [HackerEarth ML challenge](https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/) — binary classification of steel coil quality/defect label `Y` from 49 numeric features `X1`–`X49` and identifier `CoilID`.
 
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-27
 
 ---
 
@@ -12,10 +12,10 @@ This document records everything done in this repository so far: motivation, ste
 
 | Item | Detail |
 |------|--------|
-| **Best HackerEarth score** | **1.88679** — `models/lightgbm-cv` |
+| **Best HackerEarth score** | **14.33964** — `union-gbm33-plus-5` (Phase 8) |
 | **Baseline score** | 1.13208 — `models/xgboost-baseline` |
 | **Failed follow-up** | 1.13208 — `models/gbm-ensemble` (same as baseline despite better OOF) |
-| **Recommended submission** | `models/lightgbm-cv/submission/submission.csv` + zip |
+| **Recommended submission** | `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/` or `models/union-gbm33-augment/` |
 | **Core lesson** | OOF accuracy improved with ensembling, but **test calibration collapsed** when probabilities were averaged across models. Single LightGBM with native missing values won. |
 
 ---
@@ -625,9 +625,66 @@ These names break the usual `models/{algorithm}/` kebab-case rule. They are **no
 
 Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were a expedient during the score push.
 
+Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were a expedient during the score push.
+
 ---
 
-## 20. Key hyperparameters (recall-first model)
+## 20. Phase 9 — Push toward LB ~100 (2026-05-27)
+
+**Goal:** Extend union-gbm33 strategy, improve base ranking, add model diversity and meta-stacking.
+
+### 20A — Extended union K sweep
+
+- Refactored union logic to [`utils/union_augment.py`](utils/union_augment.py)
+- Extended [`scripts/build_union_submission.py`](scripts/build_union_submission.py): K=35–42, expanded secondary pool (rf-smote-v2, mega-recall-blend, lightgbm-optuna, gbm-mega-blend, catboost-recall, meta-recall-stack)
+- Extended [`scripts/analyze_model_disagreement.py`](scripts/analyze_model_disagreement.py): 10 methods, K up to 44
+- Extended gbm-only K sweep: K=34–42 in `rethreshold_submission.py --phase8`
+
+**Generated union exclusives beyond gbm33 (expanded pool):** 282, 631, 1097, 302, 940, 1138, 1346, 1189, 826 (9 total candidates; plus-N adds in rank order).
+
+### 20B — First-class union method
+
+New [`models/union-gbm33-augment/`](models/union-gbm33-augment/) — `train.py` / `predict.py` / `pack.py` wrapping union augment with `--target-k`, `--ensure-secondaries`.
+
+### 20C — Scaled GBM + Optuna fix
+
+- `gbm-recall/train.py --scale`: 2000 trees, lr=0.02, depth=5, 10-fold CV
+- `gbm-recall-optuna`: objective changed to **OOF accuracy @ top-K**; **rank-based canary guard** (806/1187 must be in top-K, not proba floor)
+
+### 20D — Meta-stack + new model families
+
+| Method | Purpose |
+|--------|---------|
+| [`models/meta-recall-stack/`](models/meta-recall-stack/) | Meta-learner on 5–9 base OOF probas; K ∈ {33,35,38,40} |
+| [`models/catboost-recall/`](models/catboost-recall/) | CatBoost solo @ top-K=33 for union diversity |
+| [`models/autogluon-recall/`](models/autogluon-recall/) | AutoGluon best_quality ensemble |
+| [`models/gbm-recall-fullmiss/`](models/gbm-recall-fullmiss/) | GBM with miss indicators on all 49 columns |
+
+### 20E — Guarded FE
+
+- [`utils/tabular_features_full_miss.py`](utils/tabular_features_full_miss.py) — miss_X1..miss_X49
+- [`scripts/probe_single_feature.py`](scripts/probe_single_feature.py) probes full_miss set with canary guard
+
+### Phase 9 upload ladder (pending HackerEarth scores)
+
+| Priority | Method | K | Path |
+|----------|--------|---|------|
+| 1 | union-gbm33-plus-6 | 39 | `phase8-rethreshold/outputs/union-gbm33-plus-6/submission/` |
+| 2 | union-gbm33-plus-7 | 40 | `phase8-rethreshold/outputs/union-gbm33-plus-7/submission/` |
+| 3 | union-gbm33-plus-3 | 36 | `phase8-rethreshold/outputs/union-gbm33-plus-3/submission/` |
+| 4 | gbm-recall top_k_39 | 39 | `phase8-rethreshold/outputs/gbm-recall/submission_k39.csv` |
+| 5 | union-gbm33-augment | 38 | `models/union-gbm33-augment/submission/` |
+
+```powershell
+python scripts/pack_phase8_submissions.py
+python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-6/submission/submission.csv --max-positives 45
+```
+
+Log new LB scores in §18 after upload.
+
+---
+
+## 21. Key hyperparameters (recall-first model)
 
 **`lightgbm-recall` — same LGBM as lightgbm-cv, threshold t=0.05:**
 
@@ -635,7 +692,7 @@ See §16 in prior version for LGBM params; threshold strategy in `utils/threshol
 
 ---
 
-## 21. References
+## 22. References
 
 - Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
 - Method READMEs: `models/*/README.md`

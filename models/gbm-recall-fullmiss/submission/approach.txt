@@ -1,0 +1,6 @@
+Method: gbm-recall-fullmiss
+Approach: gbm-recall with miss_X1..miss_X49 (all columns) + row_missing_count
+
+Tools: xgboost, lightgbm, catboost, pandas.
+
+Reproduce: python models/gbm-recall-fullmiss/train.py --threshold-strategy top_k_33

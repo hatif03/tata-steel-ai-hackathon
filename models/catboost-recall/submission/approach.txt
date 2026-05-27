@@ -1,0 +1,6 @@
+Method: catboost-recall
+Approach: CatBoost solo, top-K recall, tabular_features.py
+
+Tools: catboost, scikit-learn, pandas.
+
+Reproduce: python models/catboost-recall/train.py --k 33 && python models/catboost-recall/predict.py

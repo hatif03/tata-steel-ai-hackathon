@@ -16,8 +16,13 @@ from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 
 ROOT = Path(__file__).resolve().parents[2]
+METHOD_DIR = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(METHOD_DIR) not in sys.path:
+    sys.path.insert(0, str(METHOD_DIR))
+
+from features import feature_names, to_frame  # noqa: E402
 
 from utils.plotting import plot_confusion_matrix, plot_fold_scores, plot_pr_curve, plot_threshold_sweep
 from utils.run_artifacts import (
@@ -28,7 +33,6 @@ from utils.run_artifacts import (
     save_run_config,
     write_artifacts_manifest,
 )
-from utils.tabular_features import feature_names, to_frame
 from utils.threshold_tuning import (
     apply_threshold,
     apply_top_k,
@@ -37,7 +41,6 @@ from utils.threshold_tuning import (
     select_threshold_by_strategy,
 )
 
-METHOD_DIR = Path(__file__).resolve().parent
 RANDOM_STATE = 42
 N_SPLITS = 5
 N_SPLITS_SCALE = 10
@@ -176,7 +179,7 @@ def main() -> None:
     final_models["catboost"].save_model(str(artifacts_dir / "catboost_model.cbm"))
 
     meta = {
-        "method": "gbm-recall",
+        "method": "gbm-recall-fullmiss",
         "threshold": thresh.threshold,
         "threshold_strategy": thresh.strategy,
         "top_k": args.top_k if thresh.strategy.startswith("top_k_") else None,
@@ -190,7 +193,7 @@ def main() -> None:
 
     report = classification_report(y, oof_pred, output_dict=True, zero_division=0)
     metrics = {
-        "method": "gbm-recall",
+        "method": "gbm-recall-fullmiss",
         "oof_pr_auc": float(average_precision_score(y, oof_blend)),
         "oof_accuracy": thresh.accuracy,
         "oof_recall": thresh.recall,

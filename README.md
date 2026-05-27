@@ -98,6 +98,8 @@ Full log of experiments, leaderboard scores, failures, and lessons learned:
 |----------|--------|----------------|------|
 | **14.33964** | union-gbm33-plus-5 | 38 | `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/` |
 
+Phase 9 adds `models/union-gbm33-augment/` and extended K sweep (plus-2 through plus-9). See [DEVELOPMENT.md](DEVELOPMENT.md) §20.
+
 Phase 8 documentation: [`models/phase8-rethreshold/README.md`](models/phase8-rethreshold/README.md). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18.
 
 ```powershell

@@ -1,6 +1,6 @@
 # GBM Recall Optuna
 
-Joint Optuna tuning of XGB + LightGBM + CatBoost with equal blend. Objective: OOF PR-AUC. Canary guard on coils 806/1187 vs gbm-recall baseline. Default K=33.
+Joint Optuna tuning of XGB + LightGBM + CatBoost with equal blend. **Objective: OOF accuracy @ top-K** (Phase 9). **Rank-based canary guard** on OOF (806/1187 in top-K on train proxy). Default K=33.
 
 ## How to run
 

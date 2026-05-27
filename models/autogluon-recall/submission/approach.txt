@@ -1,0 +1,7 @@
+Method: autogluon-recall
+Approach: AutoGluon TabularPredictor ensemble, top-K recall
+
+Features: tabular_features.py (X1-X49 + missing indicators).
+Tools: autogluon, pandas, scikit-learn.
+
+Reproduce: python models/autogluon-recall/train.py --k 33 --time-limit 600

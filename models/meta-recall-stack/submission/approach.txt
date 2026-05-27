@@ -1,0 +1,10 @@
+Method: meta-recall-stack
+Approach: Meta-learner on base recall model OOF probas
+
+Base models: sklearn-recall, lightgbm-recall, gbm-recall, recall-blend, rf-smote-v2, mega-recall-blend, lightgbm-optuna, gbm-mega-blend, catboost-recall (available outputs only).
+
+Meta: LogisticRegression stacking or weight-opt blend; K selected from {33,35,38,40} by OOF accuracy @ top-K with canary forcing.
+
+Tools: scikit-learn, scipy, pandas, joblib.
+
+Reproduce: python models/meta-recall-stack/train.py && python models/meta-recall-stack/predict.py

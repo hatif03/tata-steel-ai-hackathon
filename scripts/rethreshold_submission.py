@@ -28,7 +28,7 @@ CANARY_COILS = (654, 806, 532, 958, 1187)
 OUTPUT_DIR = ROOT / "models" / "phase7-rethreshold" / "outputs"
 PHASE8_OUTPUT_DIR = ROOT / "models" / "phase8-rethreshold" / "outputs"
 DEFAULT_K_VALUES = (25, 26, 27, 28, 30, 33)
-PHASE8_K_VALUES = (33, 34, 35, 36, 38)
+PHASE8_K_VALUES = (33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
 DEFAULT_METHODS = ("sklearn-recall", "lightgbm-recall", "gbm-recall", "recall-blend")
 PHASE8_METHODS = ("gbm-recall", "gbm-mega-blend", "gbm-recall-optuna")
 
