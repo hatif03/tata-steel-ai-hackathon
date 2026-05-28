@@ -4,7 +4,7 @@ This document records everything done in this repository so far: motivation, ste
 
 **Problem:** [HackerEarth ML challenge](https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/) — binary classification of steel coil quality/defect label `Y` from 49 numeric features `X1`–`X49` and identifier `CoilID`.
 
-**Last updated:** 2026-05-27
+**Last updated:** 2026-05-28
 
 ---
 
@@ -12,11 +12,11 @@ This document records everything done in this repository so far: motivation, ste
 
 | Item | Detail |
 |------|--------|
-| **Best HackerEarth score** | **14.33964** — `union-gbm33-plus-5` (Phase 8) |
+| **Best HackerEarth score** | **15.84906** — `union-gbm33-plus-9` (Phase 9, K=42) |
+| **Prior best (Phase 8)** | 14.33964 — `union-gbm33-plus-5` (K=38) |
 | **Baseline score** | 1.13208 — `models/xgboost-baseline` |
-| **Failed follow-up** | 1.13208 — `models/gbm-ensemble` (same as baseline despite better OOF) |
-| **Recommended submission** | `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/` or `models/union-gbm33-augment/` |
-| **Core lesson** | OOF accuracy improved with ensembling, but **test calibration collapsed** when probabilities were averaged across models. Single LightGBM with native missing values won. |
+| **Recommended submission** | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/` or `models/union-gbm33-augment/train.py --target-k 42` |
+| **Core lesson (Phase 9)** | Union augment beyond gbm33 scales **linearly** in the 38–42 positive band (~**+0.377 LB per added exclusive**). Gains come from flagging secondary-model exclusives, not from re-ranking within gbm top-33 or probability blending. |
 
 ---
 
@@ -571,9 +571,13 @@ Pack: `python scripts/pack_phase7_submissions.py`
 | ~05-26 | phase8 gbm-recall top_k_33 | **12.45283** | 33 | Retrain with explicit K=33 meta |
 | ~05-26 | phase8 gbm-mega-blend | **12.45283** | 33 | Stacking @ K=33 — same top-33 set as gbm |
 | ~05-26 | **phase8 union-gbm33-plus-2** | **13.20755** | 35 | gbm33 + 2 union exclusives (282, 631) |
-| ~05-26 | **phase8 union-gbm33-plus-5** | **14.33964** | 38 | gbm33 + 5 union exclusives |
+| ~05-26 | **phase8 union-gbm33-plus-5** | **14.33964** | 38 | gbm33 + 5 exclusives (Phase 8 pool) |
+| ~05-28 | **union-gbm33-plus-6** | **14.71698** | 39 | +1138 exclusive |
+| ~05-28 | **union-gbm33-plus-7** | **15.09434** | 40 | +1346 exclusive |
+| ~05-28 | **union-gbm33-plus-8** | **15.47170** | 41 | +1189 exclusive |
+| ~05-28 | **union-gbm33-plus-9** | **15.84906** | 42 | +826 exclusive — **current best** |
 
-**Current best LB:** **14.33964** (union-gbm33-plus-5). Fallback: `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/`.
+**Current best LB:** **15.84906** (`union-gbm33-plus-9`, 42 positives). Fallback: `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/`.
 
 ---
 
@@ -615,72 +619,122 @@ Pack: `python scripts/pack_phase8_submissions.py`. See [`models/phase8-rethresho
 |--------|-------|----------|----------|
 | gbm-recall / gbm-mega-blend @ K=33 | 12.45283 | 33 | Same top-33 coils — blending did not help at this K |
 | union-gbm33-plus-2 | **13.20755** | 35 | +6% — adding 2 secondary-model exclusives works |
-| **union-gbm33-plus-5** | **14.33964** | 38 | **+15%** — full K=26 union beyond gbm33 is the win |
+| union-gbm33-plus-5 | **14.33964** | 38 | +15% vs gbm33 — union validated |
+| union-gbm33-plus-6…9 | **14.72–15.85** | 39–42 | Phase 9 — see §20F; linear ~0.38/exclusive |
 
-**Key insight:** LB score scales with flagging the right *additional* coils from model disagreement, not from re-ranking within gbm's top-33. The five exclusives (282, 302, 631, 1138, 1346) were predicted offline; union augment validated them on leaderboard.
+**Key insight (Phase 8–9):** LB score scales with flagging the right *additional* coils from model disagreement, not from re-ranking within gbm's top-33. Phase 9 confirmed **~+0.377 LB per ranked exclusive** from K=38 through K=42 (union-gbm33-plus-5 → plus-9). **Current best LB: 15.84906** at 42 test positives.
 
 ### Why `phase6/7/8-rethreshold` folders exist
 
 These names break the usual `models/{algorithm}/` kebab-case rule. They are **not** ML methods — no `train.py` / `predict.py`. They are **upload-batch staging dirs**: README + gitignored `outputs/` filled by `scripts/rethreshold_submission.py` and `pack_phase*_submissions.py`. The underlying methods (`gbm-recall`, `recall-blend`, …) still own the source zips.
 
-Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were a expedient during the score push.
-
-Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were a expedient during the score push.
+Prefer proper method folders for durable approaches (e.g. promote union augment to `models/union-gbm33-augment/`). Phase folders were an expedient during the score push.
 
 ---
 
-## 20. Phase 9 — Push toward LB ~100 (2026-05-27)
+## 20. Phase 9 — Push toward LB ~100 (2026-05-27 / 2026-05-28)
 
 **Goal:** Extend union-gbm33 strategy, improve base ranking, add model diversity and meta-stacking.
 
 ### 20A — Extended union K sweep
 
 - Refactored union logic to [`utils/union_augment.py`](utils/union_augment.py)
-- Extended [`scripts/build_union_submission.py`](scripts/build_union_submission.py): K=35–42, expanded secondary pool (rf-smote-v2, mega-recall-blend, lightgbm-optuna, gbm-mega-blend, catboost-recall, meta-recall-stack)
-- Extended [`scripts/analyze_model_disagreement.py`](scripts/analyze_model_disagreement.py): 10 methods, K up to 44
-- Extended gbm-only K sweep: K=34–42 in `rethreshold_submission.py --phase8`
+- Extended [`scripts/build_union_submission.py`](scripts/build_union_submission.py): K=35–42, expanded secondary pool:
+  - `lightgbm-recall`, `sklearn-recall`, `recall-blend` (Phase 8)
+  - **Phase 9 additions:** `rf-smote-v2`, `mega-recall-blend`, `lightgbm-optuna`, `gbm-mega-blend`
+- Ranking: `max(secondary proba)` over loaded secondaries; optional `--ranking mean|weighted`
+- Secondary positive sets computed at **K=26** with canary forcing; anchor fixed at **gbm-recall top-33**
+- Extended [`scripts/analyze_model_disagreement.py`](scripts/analyze_model_disagreement.py): up to 10 methods, K up to 44
+- Extended gbm-only K sweep: K=34–42 via `rethreshold_submission.py --phase8`
 
-**Generated union exclusives beyond gbm33 (expanded pool):** 282, 631, 1097, 302, 940, 1138, 1346, 1189, 826 (9 total candidates; plus-N adds in rank order).
+**Exclusive ranking order (Phase 9 expanded pool, beyond gbm33):**
+
+| Rank | CoilID | First appears in |
+|------|--------|------------------|
+| 1 | 282 | plus-2 (K=35) |
+| 2 | 631 | plus-2 |
+| 3 | 1097 | plus-3 (K=36) |
+| 4 | 302 | plus-4 (K=37) |
+| 5 | 940 | plus-5 (K=38) |
+| 6 | 1138 | plus-6 (K=39) |
+| 7 | 1346 | plus-7 (K=40) |
+| 8 | 1189 | plus-8 (K=41) |
+| 9 | 826 | plus-9 (K=42) |
+
+Full coil lists per K: [`models/phase8-rethreshold/outputs/union_manifest.json`](models/phase8-rethreshold/outputs/union_manifest.json).
 
 ### 20B — First-class union method
 
-New [`models/union-gbm33-augment/`](models/union-gbm33-augment/) — `train.py` / `predict.py` / `pack.py` wrapping union augment with `--target-k`, `--ensure-secondaries`.
+New [`models/union-gbm33-augment/`](models/union-gbm33-augment/) — `train.py` / `predict.py` / `pack.py` wrapping union augment with `--target-k`, `--ensure-secondaries`, `--ranking`.
 
 ### 20C — Scaled GBM + Optuna fix
 
-- `gbm-recall/train.py --scale`: 2000 trees, lr=0.02, depth=5, 10-fold CV
-- `gbm-recall-optuna`: objective changed to **OOF accuracy @ top-K**; **rank-based canary guard** (806/1187 must be in top-K, not proba floor)
+- `gbm-recall/train.py --scale`: 2000 trees, lr=0.02, depth=5, 10-fold CV — trained; 33 test positives, canaries OK; did not beat union path on LB
+- `gbm-recall-optuna`: objective → **OOF accuracy @ top-K**; rank-based canary guard; 8-trial run OOF PR-AUC **0.361** (best saved in `outputs/latest/`)
 
 ### 20D — Meta-stack + new model families
 
-| Method | Purpose |
-|--------|---------|
-| [`models/meta-recall-stack/`](models/meta-recall-stack/) | Meta-learner on 5–9 base OOF probas; K ∈ {33,35,38,40} |
-| [`models/catboost-recall/`](models/catboost-recall/) | CatBoost solo @ top-K=33 for union diversity |
-| [`models/autogluon-recall/`](models/autogluon-recall/) | AutoGluon best_quality ensemble |
-| [`models/gbm-recall-fullmiss/`](models/gbm-recall-fullmiss/) | GBM with miss indicators on all 49 columns |
+| Method | Purpose | LB impact |
+|--------|---------|-----------|
+| [`models/meta-recall-stack/`](models/meta-recall-stack/) | LogisticRegression / weight-opt on 5–9 base OOF probas; K ∈ {33,35,38,40} | Secondary pool only — 35 test pos @ K=35 |
+| [`models/catboost-recall/`](models/catboost-recall/) | CatBoost solo @ top-K=33 | Union secondary |
+| [`models/autogluon-recall/`](models/autogluon-recall/) | AutoGluon `medium_quality`, 33 test pos | Union secondary |
+| [`models/gbm-recall-fullmiss/`](models/gbm-recall-fullmiss/) | GBM + miss_X1..miss_X49 | **SKIP** — canary guard fails |
 
 ### 20E — Guarded FE
 
-- [`utils/tabular_features_full_miss.py`](utils/tabular_features_full_miss.py) — miss_X1..miss_X49
-- [`scripts/probe_single_feature.py`](scripts/probe_single_feature.py) probes full_miss set with canary guard
+- [`utils/tabular_features_full_miss.py`](utils/tabular_features_full_miss.py) — miss indicators on all 49 columns
+- Probe result (`feature_probe_report.json`): ratios X13/X10, X30/X32, and full_miss all **SKIP** (proba drop on coils 806/1187)
 
-### Phase 9 upload ladder (pending HackerEarth scores)
+### 20F — Phase 9 LB results (confirmed 2026-05-28)
 
-| Priority | Method | K | Path |
-|----------|--------|---|------|
-| 1 | union-gbm33-plus-6 | 39 | `phase8-rethreshold/outputs/union-gbm33-plus-6/submission/` |
-| 2 | union-gbm33-plus-7 | 40 | `phase8-rethreshold/outputs/union-gbm33-plus-7/submission/` |
-| 3 | union-gbm33-plus-3 | 36 | `phase8-rethreshold/outputs/union-gbm33-plus-3/submission/` |
-| 4 | gbm-recall top_k_39 | 39 | `phase8-rethreshold/outputs/gbm-recall/submission_k39.csv` |
-| 5 | union-gbm33-augment | 38 | `models/union-gbm33-augment/submission/` |
+**Hypothesis validated:** extending union beyond plus-5 continues to improve LB with **near-constant marginal gain** per ranked exclusive.
 
-```powershell
-python scripts/pack_phase8_submissions.py
-python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-6/submission/submission.csv --max-positives 45
+| Method | K | Test pos | LB score | Δ vs plus-5 | Marginal exclusive added |
+|--------|---|----------|----------|-------------|--------------------------|
+| union-gbm33-plus-5 | 38 | 38 | 14.33964 | — | (Phase 8 baseline) |
+| **union-gbm33-plus-6** | 39 | 39 | **14.71698** | +0.37734 | **1138** |
+| **union-gbm33-plus-7** | 40 | 40 | **15.09434** | +0.75470 | **1346** |
+| **union-gbm33-plus-8** | 41 | 41 | **15.47170** | +1.13206 | **1189** |
+| **union-gbm33-plus-9** | 42 | 42 | **15.84906** | +1.50942 | **826** |
+
+**Marginal gain plus-N → plus-(N+1):** ~**0.3774** LB points per additional coil (std ≈ 0.00002) — effectively linear in this band.
+
+**Score vs positive count (union family, confirmed):**
+
+```
+K=33  → 12.45   (gbm anchor only)
+K=35  → 13.21   (plus-2)
+K=38  → 14.34   (plus-5)
+K=39  → 14.72   (plus-6)
+K=40  → 15.09   (plus-7)
+K=41  → 15.47   (plus-8)
+K=42  → 15.85   (plus-9)  ← current best
 ```
 
-Log new LB scores in §18 after upload.
+**Takeaways:**
+
+1. Each ranked exclusive from the expanded secondary pool (1138, 1346, 1189, 826) was worth ~0.38 LB — likely true positives missed by gbm top-33 alone.
+2. Still **far from forum ~100** (~7.6× gap); next push should find **more exclusives** (disagreement union at K=33 had ~59 coils; 9 used so far) or improve gbm33 anchor ranking.
+3. Untested on LB: plus-3 (K=36), plus-4 (K=37), pure gbm K=39–42 without union, K=43+ if more exclusives exist.
+
+### Phase 9 recommended upload / reproduce
+
+```powershell
+python models/gbm-recall/train.py --threshold-strategy top_k_33
+python models/gbm-recall/predict.py
+# train secondaries (or --ensure-secondaries on union method)
+python scripts/build_union_submission.py --target-ks 43 44 45
+python scripts/pack_phase8_submissions.py
+python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv --max-positives 45
+```
+
+**Current best upload pair:**
+
+| File | Path |
+|------|------|
+| Predictions CSV | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv` |
+| Source zip | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/gbm-recall-hackerearth.zip` |
 
 ---
 

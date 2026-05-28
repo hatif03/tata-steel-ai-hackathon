@@ -8,6 +8,14 @@ Pipeline:
 4. Rank candidates by max secondary proba; fill to target_k.
 5. Force canary coils {654, 806, 532, 958, 1187} positive.
 
+Leaderboard (confirmed):
+- K=39 (plus-6): 14.71698 — adds coil 1138
+- K=40 (plus-7): 15.09434 — adds 1346
+- K=41 (plus-8): 15.47170 — adds 1189
+- K=42 (plus-9): 15.84906 — adds 826 (current best)
+
+Marginal gain ~0.377 LB per added exclusive in 38–42 band.
+
 Feature engineering: raw X1–X49 + missing indicators (via gbm-recall base models).
 
 Tools: Python 3.11+, xgboost, lightgbm, catboost, pandas, scikit-learn, joblib.
@@ -15,5 +23,5 @@ Tools: Python 3.11+, xgboost, lightgbm, catboost, pandas, scikit-learn, joblib.
 Reproduce:
   python models/gbm-recall/train.py --threshold-strategy top_k_33
   python models/gbm-recall/predict.py
-  python models/union-gbm33-augment/train.py --target-k 38 --ensure-secondaries
+  python models/union-gbm33-augment/train.py --target-k 42 --ensure-secondaries
   python models/union-gbm33-augment/predict.py

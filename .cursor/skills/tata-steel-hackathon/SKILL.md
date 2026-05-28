@@ -37,8 +37,10 @@ Public sources indicate Round 1 is scored primarily on **classification accuracy
 
 | Monitor locally | Optimize for submission |
 |-----------------|---------------------------|
-| PR-AUC, OOF recall, FPR | **Test accuracy** (leaderboard top ~100) |
+| PR-AUC, OOF recall, FPR | **Test accuracy** (leaderboard; forum top ~100, repo best **15.85** @ 42 positives) |
 | Stratified K-fold (k=5) | Integer `{0,1}` predictions |
+
+**Current repo best (2026-05-28):** `union-gbm33-plus-9` — LB **15.84906**, 42 test positives. Strategy: gbm-recall top-33 anchor + ranked secondary-model exclusives via [`utils/union_augment.py`](../../../utils/union_augment.py). Marginal gain ~**0.377 LB per exclusive** in K=38–42 band. See [DEVELOPMENT.md](../../../DEVELOPMENT.md) §20F.
 
 **Threshold strategy (recall-first, forum-aligned):**
 
@@ -62,7 +64,7 @@ Legacy `tune_max_accuracy` (lightgbm-cv @ t=0.73) remains a fallback reference (
 
 1. **Gradient boosting first** — LightGBM, XGBoost, CatBoost handle mixed scales, missing values, and imbalance (`scale_pos_weight`, `class_weight`, focal loss variants).
 2. **Class imbalance** — stratified splits; prefer PR-AUC for model selection; threshold-tune for accuracy.
-3. **Ensembling** — equal-weight GBM or RF+ET+GBM blends work **with low recall-first thresholds** (not high-threshold blends).
+3. **Ensembling** — equal-weight GBM is the **union anchor**; LB gains come from **coil-ID union** of secondary exclusives (`union-gbm33-plus-*`), not probability averaging.
 4. **Feature work** — ratios/interactions among X1–X33 (continuous process signals) and X34–X49 (counts/flags); missing indicators for X15; avoid target encoding without nested CV.
 5. **Reproducibility** — fix seeds (`random_state=42`); log library versions in notebooks.
 

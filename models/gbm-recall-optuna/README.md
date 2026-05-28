@@ -12,14 +12,6 @@ python scripts/rethreshold_submission.py --phase8 --methods gbm-recall-optuna --
 
 ## Results
 
-From `outputs/latest/metrics.json` (30 trials, K=33):
-
-| Metric | Value |
-|--------|-------|
-| OOF PR-AUC | 0.327 |
-| OOF accuracy @ K=33 | 0.949 |
-| Test positives | 33 |
-
-Note: strict canary guard rejected all Optuna trials; final model uses study best or gbm-recall default fallback.
-
-Prior best LB: **12.45283** (gbm-recall forum33).
+| Prior best LB | 12.45283 (gbm-recall forum33) |
+| Phase 9 best (8 trials) | OOF PR-AUC 0.361, OOF acc @ K=33 |
+| Test positives @ K=33 | 33 |

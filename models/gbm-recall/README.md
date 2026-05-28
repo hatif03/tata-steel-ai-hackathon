@@ -18,7 +18,15 @@ Unlike [`gbm-ensemble`](../gbm-ensemble/README.md) (failed LB 1.13208 with t=0.7
 | OOF accuracy @ K=33 | 0.950 |
 | Canary coils | all Y=1 |
 
-**Phase 8 note:** gbm-recall @ 33 positives is the **anchor set** for union augments. Adding secondary-model exclusives via [`build_union_submission.py`](../../scripts/build_union_submission.py) beat this score: **13.21** (K=35) and **14.34** (K=38). See [`models/phase8-rethreshold/README.md`](../phase8-rethreshold/README.md).
+**Phase 8–9 note:** gbm-recall @ 33 positives is the **anchor set** for union augments. Union beyond gbm33 is the only path that improved LB:
+
+| Union variant | LB | Test pos |
+|---------------|-----|----------|
+| plus-2 | 13.20755 | 35 |
+| plus-5 | 14.33964 | 38 |
+| plus-9 | **15.84906** | 42 |
+
+See [`models/phase8-rethreshold/README.md`](../phase8-rethreshold/README.md) and [`models/union-gbm33-augment/`](../union-gbm33-augment/).
 
 ## How to run
 

@@ -96,14 +96,14 @@ Full log of experiments, leaderboard scores, failures, and lessons learned:
 
 | LB score | Method | Test positives | Path |
 |----------|--------|----------------|------|
-| **14.33964** | union-gbm33-plus-5 | 38 | `models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/` |
+| **15.84906** | union-gbm33-plus-9 | 42 | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/` |
 
-Phase 9 adds `models/union-gbm33-augment/` and extended K sweep (plus-2 through plus-9). See [DEVELOPMENT.md](DEVELOPMENT.md) §20.
+Phase 9 union sweep (plus-6 through plus-9) confirmed **~+0.377 LB per added exclusive** in the 38–42 band. See [DEVELOPMENT.md](DEVELOPMENT.md) §20F for full score curve and coil IDs.
 
-Phase 8 documentation: [`models/phase8-rethreshold/README.md`](models/phase8-rethreshold/README.md). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18.
+Durable method folder: [`models/union-gbm33-augment/`](models/union-gbm33-augment/). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18.
 
 ```powershell
-python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-5/submission/submission.csv --max-positives 40
+python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv --max-positives 45
 ```
 
 ## What gets committed vs generated
