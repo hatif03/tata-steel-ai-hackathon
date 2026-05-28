@@ -1,0 +1,5 @@
+Approach: xgb-recall
+Algorithm: XGBoost solo, 5-fold stratified CV, top-K=33 with canary forcing.
+Features: X1-X49 raw tabular.
+Libraries: xgboost, scikit-learn, pandas.
+Reproduce: python models/xgb-recall/train.py && python models/xgb-recall/predict.py

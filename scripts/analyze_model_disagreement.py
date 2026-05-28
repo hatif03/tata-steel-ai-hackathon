@@ -30,6 +30,11 @@ ALL_METHODS = {
     "meta-recall-stack": "models/meta-recall-stack/outputs/latest",
     "autogluon-recall": "models/autogluon-recall/outputs/latest",
     "gbm-recall-fullmiss": "models/gbm-recall-fullmiss/outputs/latest",
+    "xgb-recall": "models/xgb-recall/outputs/latest",
+    "lgb-seedblend-recall": "models/lgb-seedblend-recall/outputs/latest",
+    "knn-positive-profile": "models/knn-positive-profile/outputs/latest",
+    "smote-stack-recall": "models/smote-stack-recall/outputs/latest",
+}
 SECONDARY_K = 26
 
 

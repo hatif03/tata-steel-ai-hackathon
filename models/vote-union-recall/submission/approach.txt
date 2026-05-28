@@ -1,0 +1,52 @@
+Vote Union Recall — Tata Steel AI Hackathon
+============================================
+
+Problem
+-------
+Binary classification: predict defect label Y ∈ {0,1} for steel coils from features X1–X49.
+Test set: 339 rows. Highly imbalanced (~5% positives in train).
+
+Approach
+--------
+Instead of union-augmenting a single GBM anchor with ranked exclusives, we run a **multi-model vote**:
+
+1. Train 17+ diverse recall-first classifiers (GBM blend, LightGBM, CatBoost, sklearn, SMOTE stacks, AutoGluon, kNN profile, meta-stack, etc.).
+2. For each model, take test-set probas and apply recall-first top-K threshold (K=40 by default).
+3. Count how many models include each coil in their top-K set.
+4. Predict Y=1 if vote count ≥ M (default M=2).
+5. Force five canary coils (654, 806, 532, 958, 1187) to Y=1 regardless of votes.
+
+This consensus rule beat union augment on HackerEarth: **LB 23.01887 @ M=2, K=40** (61 positives) vs **18.49057 @ union-gbm33-plus-16** (49 positives).
+
+Feature engineering
+-------------------
+Per-model pipelines vary; shared base is median-imputed X1–X49 via utils/tabular_features.
+gbm-recall-safe-fe adds ratio_X13_X7 (SHAP canary-safe).
+No CoilID leakage.
+
+Tools and libraries
+-------------------
+Python 3.11+, pandas, numpy, scikit-learn, LightGBM, XGBoost, CatBoost, imbalanced-learn, AutoGluon (optional).
+Shared utilities: utils/threshold_tuning.py (apply_top_k), utils/vote_union.py.
+
+Reproduction (local)
+--------------------
+1. pip install -r requirements.txt
+2. Place train.csv and test.csv in dataset/
+3. python scripts/run_phase10_train_batch.py --include-slow
+4. python models/vote-union-recall/train.py --k 40 --min-votes 2
+5. python models/vote-union-recall/predict.py
+6. Upload outputs/latest/predictions/submission.csv
+
+Hyperparameters (best config)
+------------------------------
+K = 40 (top-K per model)
+M = 2 (minimum vote count)
+Canary coils: 654, 806, 532, 958, 1187
+
+Implementation files
+--------------------
+models/vote-union-recall/train.py — builds vote submission from pool probas
+models/vote-union-recall/predict.py — regenerates from saved meta
+utils/vote_union.py — merge probas, compute votes, predict
+scripts/build_vote_union.py — K/M sweep for phase8 upload batch

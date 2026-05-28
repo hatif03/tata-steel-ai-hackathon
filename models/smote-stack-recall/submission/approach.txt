@@ -1,0 +1,5 @@
+Approach: smote-stack-recall
+Algorithm: BorderlineSMOTE + RF/LGB/CatBoost bases, LogisticRegression stack, top-K=33.
+Features: X1-X49 with median imputation.
+Libraries: imbalanced-learn, lightgbm, catboost, scikit-learn, scikit-learn-intelex.
+Reproduce: python models/smote-stack-recall/train.py && predict.py

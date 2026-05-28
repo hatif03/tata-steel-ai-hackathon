@@ -51,6 +51,12 @@ def main() -> None:
     parser.add_argument("--run-id", type=str, default=None)
     parser.add_argument("--k", type=int, default=DEFAULT_K)
     parser.add_argument("--time-limit", type=int, default=600, help="AutoGluon fit time limit (seconds)")
+    parser.add_argument(
+        "--preset",
+        choices=("medium_quality", "best_quality"),
+        default="medium_quality",
+        help="AutoGluon preset; use best_quality on Colab with more RAM",
+    )
     args = parser.parse_args()
 
     try:
@@ -82,7 +88,7 @@ def main() -> None:
     )
     predictor.fit(
         train_df,
-        presets="medium_quality",
+        presets=args.preset,
         time_limit=args.time_limit,
         dynamic_stacking=False,
         raise_on_no_models_fitted=False,
@@ -99,7 +105,7 @@ def main() -> None:
         fold_pred = TabularPredictor(label="Y", path=str(fold_dir), eval_metric="accuracy", problem_type="binary")
         fold_pred.fit(
             fold_train,
-            presets="medium_quality",
+            presets=args.preset,
             time_limit=max(60, args.time_limit // 6),
             dynamic_stacking=False,
             raise_on_no_models_fitted=False,
@@ -122,7 +128,7 @@ def main() -> None:
         {"CoilID": coil_ids, "y_true": y, "oof_proba": oof_proba, "oof_pred": oof_pred}
     ).to_csv(run_dir / "oof_predictions.csv", index=False)
 
-    meta = {"method": "autogluon-recall", "k": k, "time_limit": args.time_limit, "threshold_strategy": thresh.strategy}
+    meta = {"method": "autogluon-recall", "k": k, "time_limit": args.time_limit, "preset": args.preset, "threshold_strategy": thresh.strategy}
     joblib.dump(meta, artifacts_dir / "meta.joblib")
     write_artifacts_manifest(artifacts_dir)
 

@@ -63,6 +63,17 @@ def main() -> None:
             packed.append(entry)
             print(f"Packed {union_dir.name}")
 
+    for pattern in ("vote-union-*", "vote-min-*", "vote-weighted-*", "vote-hybrid-*", "vote-band-*", "rank-avg-*"):
+        for sub_dir in PHASE8_DIR.glob(pattern):
+            sub = sub_dir / "submission.csv"
+            entry = pack_one(sub_dir.name, sub, METHOD_MAP["gbm-recall"])
+            if entry:
+                meta_path = sub_dir / "meta.json"
+                if meta_path.is_file():
+                    entry.update(json.loads(meta_path.read_text(encoding="utf-8")))
+                packed.append(entry)
+                print(f"Packed {sub_dir.name}")
+
     (PHASE8_DIR / "pack_manifest.json").write_text(json.dumps(packed, indent=2), encoding="utf-8")
 
 

@@ -1,0 +1,5 @@
+Approach: knn-positive-profile
+Algorithm: positive-manifold cosine similarity, top-K=33, canary forcing.
+Features: X1-X49 imputed and scaled.
+Libraries: scikit-learn, scikit-learn-intelex (optional GPU).
+Reproduce: python models/knn-positive-profile/train.py && predict.py

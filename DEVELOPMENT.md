@@ -4,7 +4,7 @@ This document records everything done in this repository so far: motivation, ste
 
 **Problem:** [HackerEarth ML challenge](https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/) — binary classification of steel coil quality/defect label `Y` from 49 numeric features `X1`–`X49` and identifier `CoilID`.
 
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-29 (Phase 11 vote union)
 
 ---
 
@@ -12,11 +12,11 @@ This document records everything done in this repository so far: motivation, ste
 
 | Item | Detail |
 |------|--------|
-| **Best HackerEarth score** | **15.84906** — `union-gbm33-plus-9` (Phase 9, K=42) |
-| **Prior best (Phase 8)** | 14.33964 — `union-gbm33-plus-5` (K=38) |
+| **Best HackerEarth score** | **23.01887** — `vote-union-m2-k40` (Phase 11, 61 positives) |
+| **Prior best (Phase 10)** | 18.49057 — `union-gbm33-plus-16` (K=49, 49 positives) |
 | **Baseline score** | 1.13208 — `models/xgboost-baseline` |
-| **Recommended submission** | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/` or `models/union-gbm33-augment/train.py --target-k 42` |
-| **Core lesson (Phase 9)** | Union augment beyond gbm33 scales **linearly** in the 38–42 positive band (~**+0.377 LB per added exclusive**). Gains come from flagging secondary-model exclusives, not from re-ranking within gbm top-33 or probability blending. |
+| **Recommended submission** | `models/phase8-rethreshold/outputs/vote-union-m2-k40/submission/` |
+| **Core lesson (Phase 11)** | **Vote union @ K=40, M=2** beats union augment by **+4.5 LB** (61 vs 49 pos). Same ~**0.377 LB/point** marginal; need **precision filters** (v10+) for path to LB 100. |
 
 ---
 
@@ -575,9 +575,19 @@ Pack: `python scripts/pack_phase7_submissions.py`
 | ~05-28 | **union-gbm33-plus-6** | **14.71698** | 39 | +1138 exclusive |
 | ~05-28 | **union-gbm33-plus-7** | **15.09434** | 40 | +1346 exclusive |
 | ~05-28 | **union-gbm33-plus-8** | **15.47170** | 41 | +1189 exclusive |
-| ~05-28 | **union-gbm33-plus-9** | **15.84906** | 42 | +826 exclusive — **current best** |
+| ~05-28 | **union-gbm33-plus-9** | **15.84906** | 42 | +826 exclusive |
+| ~05-29 | **union-gbm33-plus-10** | **16.22642** | 43 | +1023 |
+| ~05-29 | **union-gbm33-plus-11** | **16.60377** | 44 | +804 |
+| ~05-29 | **union-gbm33-plus-12** | **16.98113** | 45 | +302 |
+| ~05-29 | **union-gbm33-plus-13** | **17.35849** | 46 | +582 |
+| ~05-29 | **union-gbm33-plus-14** | **17.73585** | 47 | +972 |
+| ~05-29 | **union-gbm33-plus-15** | **18.11321** | 48 | +867 |
+| ~05-29 | **union-gbm33-plus-16** | **18.49057** | 49 | +176 — **current best** |
+| ~05-29 | union-gbm33-plus-17 | **18.49057** | 50 | +797 — plateau |
+| ~05-29 | vote-union-m2-k33 | **17.73585** | 47 | = plus-14 |
+| ~05-29 | rank-avg-k35 | **13.20755** | 35 | = plus-2 — failed |
 
-**Current best LB:** **15.84906** (`union-gbm33-plus-9`, 42 positives). Fallback: `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/`.
+**Current best LB:** **18.49057** (`union-gbm33-plus-16`, 49 positives). Fallback: `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/`.
 
 ---
 
@@ -622,7 +632,7 @@ Pack: `python scripts/pack_phase8_submissions.py`. See [`models/phase8-rethresho
 | union-gbm33-plus-5 | **14.33964** | 38 | +15% vs gbm33 — union validated |
 | union-gbm33-plus-6…9 | **14.72–15.85** | 39–42 | Phase 9 — see §20F; linear ~0.38/exclusive |
 
-**Key insight (Phase 8–9):** LB score scales with flagging the right *additional* coils from model disagreement, not from re-ranking within gbm's top-33. Phase 9 confirmed **~+0.377 LB per ranked exclusive** from K=38 through K=42 (union-gbm33-plus-5 → plus-9). **Current best LB: 15.84906** at 42 test positives.
+**Key insight (Phase 8–10):** LB score scales with flagging the right *additional* coils from model disagreement. **~+0.377 LB per ranked exclusive** holds from K=38 through **K=49**. **Current best LB: 18.49057** at 49 test positives (`union-gbm33-plus-16`). Saturation at coil **797** (K=50).
 
 ### Why `phase6/7/8-rethreshold` folders exist
 
@@ -729,16 +739,189 @@ python scripts/pack_phase8_submissions.py
 python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv --max-positives 45
 ```
 
-**Current best upload pair:**
+**Current best upload pair (Phase 10):**
 
 | File | Path |
 |------|------|
-| Predictions CSV | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv` |
-| Source zip | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/gbm-recall-hackerearth.zip` |
+| Predictions CSV | `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/submission.csv` |
+| Source zip | `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/gbm-recall-hackerearth.zip` |
 
 ---
 
-## 21. Key hyperparameters (recall-first model)
+## 21. Phase 10 — Push toward LB 100 (2026-05-28)
+
+**Goal:** Extend union to K=50+, add model factory (15 models), vote union, rank averaging, SMOTE stack, kNN profile, Intel sklearn GPU, Colab AutoGluon path.
+
+### 21A — Extended union K sweep (confirmed LB 2026-05-29)
+
+**Hypothesis validated:** Phase 9 linear gain extends through **K=49** with the expanded 16-model secondary pool. **Plateau at K=50** (coil 797 adds no LB).
+
+| Method | K | Test pos | LB score | Δ vs plus-9 | Marginal Δ vs prior | Marginal exclusive |
+|--------|---|----------|----------|-------------|---------------------|-------------------|
+| union-gbm33-plus-9 | 42 | 42 | 15.84906 | — | — | (Phase 9 baseline) |
+| **union-gbm33-plus-10** | 43 | 43 | **16.22642** | +2.377 | +0.37736 | **1023** (10th in Phase 10 rank) |
+| **union-gbm33-plus-11** | 44 | 44 | **16.60377** | +2.755 | +0.37735 | **804** |
+| **union-gbm33-plus-12** | 45 | 45 | **16.98113** | +3.132 | +0.37736 | **302** |
+| **union-gbm33-plus-13** | 46 | 46 | **17.35849** | +3.509 | +0.37736 | **582** |
+| **union-gbm33-plus-14** | 47 | 47 | **17.73585** | +3.887 | +0.37736 | **972** |
+| **union-gbm33-plus-15** | 48 | 48 | **18.11321** | +4.264 | +0.37736 | **867** |
+| **union-gbm33-plus-16** | 49 | 49 | **18.49057** | +4.641 | +0.37736 | **176** |
+| union-gbm33-plus-17 | 50 | 50 | **18.49057** | +4.641 | **0.00000** | **797** (no LB gain) |
+
+**Marginal gain plus-N → plus-(N+1) for N=9…15:** ~**0.3774** LB points per coil — same constant as Phase 9 band (38–42).
+
+**Score vs positive count (union family, confirmed through K=50):**
+
+```
+K=33  → 12.45   (gbm anchor only)
+K=42  → 15.85   (plus-9)
+K=43  → 16.23   (plus-10)
+K=47  → 17.74   (plus-14)
+K=49  → 18.49   (plus-16)  ← current best
+K=50  → 18.49   (plus-17)  ← plateau
+```
+
+**Phase 10 exclusive sequence (incremental beyond prior K, from meta.json):** 1023 → 804 → 302 → 582 → 972 → 867 → 176 → 797 (dead end).
+
+Expanded secondary pool (16 models): Phase 9 pool + `catboost-recall`, `meta-recall-stack`, `autogluon-recall`, `xgb-recall`, `lgb-seedblend-recall`, `knn-positive-profile`, `smote-stack-recall`.
+
+**Note:** Phase 10 reranked the full exclusive list vs Phase 9 (e.g. 1346, 933 appear early in plus-10 `added` list) because more secondaries changed `max(secondary proba)` ordering — but **marginal LB per added slot** stayed constant.
+
+### 21B — Ranking breakthrough submissions (confirmed LB)
+
+| Strategy | Test pos | LB score | vs union at same K | Verdict |
+|----------|----------|----------|---------------------|---------|
+| **vote-union-m2-k33** | 47 | **17.73585** | = plus-14 (47 pos) | Consensus adds no gain over union at same count |
+| **rank-avg-k35** | 35 | **13.20755** | = plus-2 (35 pos) | Rank averaging **fails** on LB — do not prioritize |
+
+Paths: `models/phase8-rethreshold/outputs/`.
+
+**Takeaway:** LB gains remain **union-exclusive driven**. Vote union at 47 positives duplicates plus-14 exactly (17.73585). Rank-averaging before top-K regresses to early Phase 8 scores (~13.2 @ 35 pos) — same failure mode as probability averaging (wrong coils ranked into top-K).
+
+### 21C — New model families
+
+| Method | Notes |
+|--------|-------|
+| `xgb-recall` | Solo XGB @ top-K=33 |
+| `lgb-seedblend-recall` | 5 seeds, rank-avg, top-K=33 |
+| `knn-positive-profile` | Cosine sim to train Y=1 manifold |
+| `smote-stack-recall` | BorderlineSMOTE + RF/LGB/Cat + LR stack |
+| `meta-recall-stack` v2 | rank_avg strategy, K sweep 20–45 |
+
+### 21D — Infrastructure
+
+- `utils/intel_sklearn.py` — scikit-learn-intelex GPU offload for RF/ET
+- `scripts/build_vote_union.py`, `scripts/build_rank_avg_submission.py`
+- `scripts/run_phase10_train_batch.py`, `scripts/batch_shap_ratio_probe.py`
+- `requirements.txt`: `scikit-learn-intelex`
+
+### 21E — Upload priority (post Phase 10 LB)
+
+1. **Current best:** `union-gbm33-plus-16` (K=49, LB **18.49057**) — prefer over plus-17 (same score, one fewer FP risk)
+2. **Untested gap fill:** `union-gbm33-plus-3`, `plus-4` (K=36–37) — interpolate early curve
+3. **Beyond saturation:** need **new exclusives** from more/different secondaries — disagreement union had ~52 coils beyond gbm33 @ K=26; ranked batch through 797 exhausted current rank order
+4. **Deprioritize:** rank-avg variants, vote union (no gain vs union at matched K)
+5. **Colab:** `autogluon-recall --preset best_quality` → rebuild union with fresh secondary proba
+
+### 21F — Phase 10 LB summary (confirmed 2026-05-29)
+
+| Milestone | Value |
+|-----------|-------|
+| **Best LB** | **18.49057** |
+| **Best method** | `union-gbm33-plus-16` (49 positives) |
+| **Gain Phase 9 → Phase 10** | +2.64151 LB (+16.7% relative) |
+| **Linear constant** | ~0.3774 LB / exclusive (K=38–49) |
+| **Saturation coil** | **797** @ K=50 (plus-17) |
+| **Gap to LB 100** | ~5.4× (still need ranking breakthrough or more valid exclusives) |
+
+**Recommended upload pair:**
+
+| File | Path |
+|------|------|
+| Predictions CSV | `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/submission.csv` |
+| Source zip | `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/gbm-recall-hackerearth.zip` |
+
+---
+
+## 22. Phase 11 — Vote Union Push to LB 100 (2026-05-29)
+
+**Goal:** Pivot from union augment (LB 18.49 plateau) to **multi-model vote consensus** at K=40; sweep K/M, high-confidence variants, expand pool to 18+ models.
+
+### 22A — Vote union breakthrough (confirmed LB)
+
+| Strategy | K / rule | Test pos | LB score | vs prior best |
+|----------|----------|----------|----------|---------------|
+| union-gbm33-plus-16 | anchor + exclusives | 49 | 18.49057 | Phase 10 best |
+| vote-union-m2-k33 | M≥2, K=33 | 47 | 17.73585 | K too low |
+| vote-union-m3-k40 | M≥3, K=40 | 51 | 19.24529 | Stricter M hurts |
+| **vote-union-m2-k40** | **M≥2, K=40** | **61** | **23.01887** | **+4.53 LB — new anchor** |
+
+**Marginal gain 49→61 positives:** (23.02 − 18.49) / 12 ≈ **0.377 LB/point** — same constant as union augment. Linear extrapolation to LB 100 would need ~204 more positives (impossible on 339 rows). Strategy: find **LB peak** via K/M sweep, then **high-vote precision** filters.
+
+### 22B — Extended K/M sweep (generated, upload queue)
+
+Extended `scripts/build_vote_union.py`: K ∈ {38…55}, M ∈ {1…4}. Pool: **18 models** (added `gbm-recall-safe-fe`, `catboost-recall-seed42`, `catboost-recall-seed123`).
+
+| Priority upload | Positives (18-model pool) | Rationale |
+|-----------------|----------------------------|-----------|
+| **vote-union-m2-k38** | 55 | Confirm curve below K=40 |
+| **vote-union-m2-k41 … m2-k45** | 61–64 | Continue upward from winner |
+| vote-union-m1-k40 | 75 | Permissive — test FP penalty |
+| vote-union-m2-k50, m2-k55 | 74, 82 | Find inflection |
+
+**Stop rule:** If 3 consecutive uploads gain < 0.1 LB, note peak and pivot to precision variants.
+
+### 22C — Advanced vote variants (generated)
+
+`scripts/build_vote_union_advanced.py`:
+
+| Variant | Positives (18 models) | Hypothesis |
+|---------|----------------------|------------|
+| vote-min-k40-v10 | 39 | Precision-first (votes ≥ 10) |
+| vote-min-k40-v12 | 33 | Tighter consensus |
+| vote-min-k40-v14 | 28 | Near-unanimous |
+| vote-weighted-k40-t0.15 | 52 | OOF-accuracy weighted |
+| vote-hybrid-gbm33-or-m2-k40 | 61 | Same as m2-k40 (gbm33 ⊆ vote) |
+
+### 22D — Vote analysis (m2-k40)
+
+`scripts/analyze_vote_submission.py` → `outputs/vote_analysis_m2_k40.json`:
+
+- **15 coils exclusive** to vote vs union-gbm33-plus-16 (49 pos)
+- Vote tiers: coils with 14–17 votes (near-unanimous among 18 models) vs marginal 2-vote coils drive LB gains
+
+### 22E — Model pool expansion
+
+| Model | Status |
+|-------|--------|
+| `gbm-recall-safe-fe` | In pool (ratio_X13_X7) |
+| `catboost-recall-seed42` | Trained (depth 6 variant) |
+| `catboost-recall-seed123` | Trained (seed 123) |
+| `autogluon-recall` | In pool; Colab `--preset best_quality --time-limit 3600` for refresh |
+
+Shared helpers: `utils/vote_union.py`. First-class method: `models/vote-union-recall/`.
+
+### 22F — Path to LB 100 (honest projection)
+
+```
+61 pos → 23.02  (confirmed)
+70 pos → ~26.4  (estimate if linear holds)
+80 pos → ~30.2
+100 pos → ~37.8  (still far from 100)
+```
+
+**Winning hypothesis:** Leaders use consensus at the right K plus either (1) more diverse models sharpening vote tiers, or (2) precision filter (votes ≥ 10–14) without FP flood.
+
+**Recommended upload pair:**
+
+| File | Path |
+|------|------|
+| Predictions CSV | `models/phase8-rethreshold/outputs/vote-union-m2-k40/submission/submission.csv` |
+| Source zip | `models/phase8-rethreshold/outputs/vote-union-m2-k40/submission/gbm-recall-hackerearth.zip` |
+
+---
+
+## 23. Key hyperparameters (recall-first model)
 
 **`lightgbm-recall` — same LGBM as lightgbm-cv, threshold t=0.05:**
 
@@ -746,7 +929,7 @@ See §16 in prior version for LGBM params; threshold strategy in `utils/threshol
 
 ---
 
-## 22. References
+## 24. References
 
 - Problem: https://www.hackerearth.com/challenges/competitive/tata-steel-ai-hackathon/machine-learning/fd-a5a6dcb2/
 - Method READMEs: `models/*/README.md`

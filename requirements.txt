@@ -9,3 +9,4 @@ imbalanced-learn>=0.12
 optuna>=3.0
 scipy>=1.10
 autogluon.tabular>=1.1
+scikit-learn-intelex>=2024.0

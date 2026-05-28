@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils.intel_sklearn import sklearn_fit_context
 from utils.plotting import plot_confusion_matrix, plot_pr_curve
 from utils.run_artifacts import (
     copy_to_latest_summary,
@@ -72,6 +73,7 @@ def main() -> None:
     parser.add_argument("--run-id", type=str, default=None)
     parser.add_argument("--sampler", choices=("borderline", "adasyn"), default="borderline")
     parser.add_argument("--k", type=int, default=DEFAULT_K)
+    parser.add_argument("--cpu-only", action="store_true")
     args = parser.parse_args()
 
     run_dir = create_run_dir(METHOD_DIR, args.run_id)
@@ -90,11 +92,12 @@ def main() -> None:
     skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
     fold_pr: list[float] = []
 
-    for tr_idx, va_idx in skf.split(X_raw, y):
-        pipe = make_base_pipeline(args.sampler)
-        pipe.fit(X_raw[tr_idx], y[tr_idx])
-        oof_proba[va_idx] = pipe.predict_proba(X_raw[va_idx])[:, 1]
-        fold_pr.append(float(average_precision_score(y[va_idx], oof_proba[va_idx])))
+    with sklearn_fit_context(use_gpu=True, cpu_only=args.cpu_only):
+        for tr_idx, va_idx in skf.split(X_raw, y):
+            pipe = make_base_pipeline(args.sampler)
+            pipe.fit(X_raw[tr_idx], y[tr_idx])
+            oof_proba[va_idx] = pipe.predict_proba(X_raw[va_idx])[:, 1]
+            fold_pr.append(float(average_precision_score(y[va_idx], oof_proba[va_idx])))
 
     thresh = tune_top_k(y, oof_proba, args.k, force_positive_idx=canary_idx)
     oof_pred, _ = apply_top_k(oof_proba, args.k, force_positive_idx=canary_idx)
@@ -103,8 +106,9 @@ def main() -> None:
         {"CoilID": coil_ids, "y_true": y, "oof_proba": oof_proba, "oof_pred": oof_pred}
     ).to_csv(run_dir / "oof_predictions.csv", index=False)
 
-    final_pipe = make_base_pipeline(args.sampler)
-    final_pipe.fit(X_raw, y)
+    with sklearn_fit_context(use_gpu=True, cpu_only=args.cpu_only):
+        final_pipe = make_base_pipeline(args.sampler)
+        final_pipe.fit(X_raw, y)
     joblib.dump(final_pipe, artifacts_dir / "pipeline.joblib")
 
     meta = {

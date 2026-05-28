@@ -37,10 +37,10 @@ Public sources indicate Round 1 is scored primarily on **classification accuracy
 
 | Monitor locally | Optimize for submission |
 |-----------------|---------------------------|
-| PR-AUC, OOF recall, FPR | **Test accuracy** (leaderboard; forum top ~100, repo best **15.85** @ 42 positives) |
+| PR-AUC, OOF recall, FPR | **Test accuracy** (leaderboard; forum top ~100, repo best **18.49** @ 49 positives) |
 | Stratified K-fold (k=5) | Integer `{0,1}` predictions |
 
-**Current repo best (2026-05-28):** `union-gbm33-plus-9` — LB **15.84906**, 42 test positives. Strategy: gbm-recall top-33 anchor + ranked secondary-model exclusives via [`utils/union_augment.py`](../../../utils/union_augment.py). Marginal gain ~**0.377 LB per exclusive** in K=38–42 band. See [DEVELOPMENT.md](../../../DEVELOPMENT.md) §20F.
+**Current repo best (2026-05-29):** `union-gbm33-plus-16` — LB **18.49057**, 49 test positives. Union linearity holds ~**+0.377 LB/exclusive** through K=49; saturated at coil **797** (plus-17). Rank-avg and vote-union do not beat union at matched K. See [DEVELOPMENT.md](../../../DEVELOPMENT.md) §21F.
 
 **Threshold strategy (recall-first, forum-aligned):**
 

@@ -1,0 +1,4 @@
+Approach: gbm-recall-safe-fe
+Adds ratio_X13_X7 to gbm-recall feature set (passed canary guard, OOF PR-AUC 0.377).
+Same 3-model GBM blend, top-K=33, canary forcing.
+Reproduce: python models/gbm-recall-safe-fe/train.py --threshold-strategy top_k_33 && predict.py

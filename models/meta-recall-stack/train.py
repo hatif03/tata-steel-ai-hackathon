@@ -27,7 +27,7 @@ from utils.run_artifacts import (
     save_run_config,
     write_artifacts_manifest,
 )
-from utils.threshold_tuning import apply_top_k, tune_top_k
+from utils.threshold_tuning import apply_top_k, rank_average_proba, tune_top_k
 
 METHOD_DIR = Path(__file__).resolve().parent
 RANDOM_STATE = 42
@@ -43,9 +43,13 @@ SOURCE_SPECS: dict[str, tuple[str, str]] = {
     "lightgbm-optuna": ("oof_proba", "models/lightgbm-optuna/outputs/latest/oof_predictions.csv"),
     "gbm-mega-blend": ("oof_blend", "models/gbm-mega-blend/outputs/latest/oof_predictions.csv"),
     "catboost-recall": ("oof_proba", "models/catboost-recall/outputs/latest/oof_predictions.csv"),
+    "xgb-recall": ("oof_proba", "models/xgb-recall/outputs/latest/oof_predictions.csv"),
+    "lgb-seedblend-recall": ("oof_proba", "models/lgb-seedblend-recall/outputs/latest/oof_predictions.csv"),
+    "smote-stack-recall": ("oof_proba", "models/smote-stack-recall/outputs/latest/oof_predictions.csv"),
+    "knn-positive-profile": ("oof_proba", "models/knn-positive-profile/outputs/latest/oof_predictions.csv"),
 }
 
-K_CANDIDATES = (33, 35, 38, 40)
+K_CANDIDATES = (20, 24, 26, 28, 30, 33, 35, 38, 40, 42, 45)
 
 
 def canary_indices(coil_ids: pd.Series) -> list[int]:
@@ -77,6 +81,7 @@ def eval_at_k(name: str, proba: np.ndarray, y: np.ndarray, canary_idx: list[int]
     m = tune_top_k(y, proba, k, force_positive_idx=canary_idx)
     d = m.to_dict()
     d["meta_strategy"] = name
+    d["k"] = k
     d["oof_blend"] = proba
     return d
 
@@ -125,10 +130,12 @@ def main() -> None:
         n = len(loaded)
         equal_w = np.ones(n) / n
         opt_w = optimize_weights(X, y, canary_idx, k)
+        rank_proba = rank_average_proba([X[:, i] for i in range(n)])
         for label, proba in [
             ("equal_weight", X @ equal_w),
             ("weight_opt", X @ opt_w),
             ("stacking", stack_proba),
+            ("rank_avg", rank_proba),
         ]:
             candidates.append(eval_at_k(label, proba, y, canary_idx, k))
 

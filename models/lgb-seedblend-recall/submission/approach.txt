@@ -1,0 +1,5 @@
+Approach: lgb-seedblend-recall
+Algorithm: 5x LightGBM seeds, rank-average probas, top-K=33 with canary forcing.
+Features: X1-X49.
+Libraries: lightgbm, scipy (rankdata), scikit-learn.
+Reproduce: python models/lgb-seedblend-recall/train.py && predict.py

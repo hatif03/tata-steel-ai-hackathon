@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import stats
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 
@@ -369,3 +370,41 @@ def format_result(m: ThresholdResult) -> str:
         f"rec={m.recall:.4f} prec={m.precision:.4f} "
         f"pos={m.n_predicted_positive} fp={m.false_positives} fn={m.false_negatives}"
     )
+
+
+def rank_average_proba(probas: list[np.ndarray] | np.ndarray) -> np.ndarray:
+    """Mean rank across models — preserves per-model ordering (not prob averaging)."""
+    if isinstance(probas, np.ndarray):
+        if probas.ndim == 1:
+            return probas.astype(float)
+        probas = [probas[i] for i in range(probas.shape[0])]
+    if not probas:
+        raise ValueError("rank_average_proba requires at least one proba vector")
+    ranks = np.stack([stats.rankdata(np.asarray(p, dtype=float)) for p in probas], axis=0)
+    return ranks.mean(axis=0)
+
+
+def sweep_optimal_k(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    k_min: int,
+    k_max: int,
+    *,
+    force_positive_idx: np.ndarray | list[int] | None = None,
+) -> tuple[int, ThresholdResult]:
+    """Pick K in [k_min, k_max] maximizing OOF accuracy @ top-K."""
+    y = np.asarray(y_true, dtype=int)
+    n = len(y)
+    k_min = int(max(1, k_min))
+    k_max = int(min(k_max, n))
+    best_k = k_min
+    best_m: ThresholdResult | None = None
+    for k in range(k_min, k_max + 1):
+        m = tune_top_k(y, proba, k, force_positive_idx=force_positive_idx)
+        if best_m is None or m.accuracy > best_m.accuracy or (
+            abs(m.accuracy - best_m.accuracy) < 1e-9 and m.recall > best_m.recall
+        ):
+            best_k = k
+            best_m = m
+    assert best_m is not None
+    return best_k, best_m

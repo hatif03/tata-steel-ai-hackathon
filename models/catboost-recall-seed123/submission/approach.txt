@@ -1,0 +1,4 @@
+Approach: CatBoost binary classifier (seed 123) with recall-first top-K threshold on test probas.
+Features: X1–X49 via utils/tabular_features (median imputation).
+Tools: catboost, scikit-learn, pandas.
+Reproduce: python models/catboost-recall-seed123/train.py && python models/catboost-recall-seed123/predict.py

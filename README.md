@@ -96,14 +96,26 @@ Full log of experiments, leaderboard scores, failures, and lessons learned:
 
 | LB score | Method | Test positives | Path |
 |----------|--------|----------------|------|
-| **15.84906** | union-gbm33-plus-9 | 42 | `models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/` |
+| **23.01887** | vote-union-m2-k40 | 61 | `models/phase8-rethreshold/outputs/vote-union-m2-k40/submission/` |
+| 18.49057 | union-gbm33-plus-16 | 49 | `models/phase8-rethreshold/outputs/union-gbm33-plus-16/submission/` |
 
-Phase 9 union sweep (plus-6 through plus-9) confirmed **~+0.377 LB per added exclusive** in the 38–42 band. See [DEVELOPMENT.md](DEVELOPMENT.md) §20F for full score curve and coil IDs.
+Phase 11 **vote union** at K=40, M≥2 confirmed **+4.5 LB** over union augment (18.49 @ 49 pos). Marginal ~**0.377 LB/point** holds; path to LB 100 needs precision filters, not count alone. See [DEVELOPMENT.md](DEVELOPMENT.md) §22.
 
-Durable method folder: [`models/union-gbm33-augment/`](models/union-gbm33-augment/). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18.
+**Phase 11 confirmed results:**
+
+| Method | LB | Positives | Notes |
+|--------|-----|-----------|-------|
+| **vote-union-m2-k40** | **23.01887** | 61 | **Current best** |
+| vote-union-m3-k40 | 19.24529 | 51 | Stricter M hurts |
+| union-gbm33-plus-16 | 18.49057 | 49 | Phase 10 best |
+| vote-union-m2-k33 | 17.73585 | 47 | K too low |
+
+Durable method folders: [`models/vote-union-recall/`](models/vote-union-recall/), [`models/union-gbm33-augment/`](models/union-gbm33-augment/). Full score history: [DEVELOPMENT.md](DEVELOPMENT.md) §18, §21–22.
 
 ```powershell
-python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/union-gbm33-plus-9/submission/submission.csv --max-positives 45
+python scripts/build_vote_union.py
+python scripts/pack_phase8_submissions.py
+python scripts/check_submission_vs_baseline.py models/phase8-rethreshold/outputs/vote-union-m2-k40/submission/submission.csv --max-positives 80
 ```
 
 ## What gets committed vs generated

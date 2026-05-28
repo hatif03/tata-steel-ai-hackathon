@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils.intel_sklearn import sklearn_fit_context
 from utils.plotting import plot_confusion_matrix, plot_fold_scores, plot_pr_curve, plot_threshold_sweep
 from utils.run_artifacts import (
     copy_to_latest_summary,
@@ -59,6 +60,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path, default=ROOT / "dataset")
     parser.add_argument("--run-id", type=str, default=None)
+    parser.add_argument("--cpu-only", action="store_true", help="Skip Intel GPU offload")
     args = parser.parse_args()
 
     run_dir = create_run_dir(METHOD_DIR, args.run_id)
@@ -77,16 +79,17 @@ def main() -> None:
     skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
     fold_pr_aucs: list[float] = []
 
-    for tr_idx, va_idx in skf.split(X_raw, y):
-        imp = SimpleImputer(strategy="median")
-        X_tr = imp.fit_transform(X_raw[tr_idx])
-        X_va = imp.transform(X_raw[va_idx])
-        for name in MODEL_NAMES:
-            model = clone_model(name)
-            model.fit(X_tr, y[tr_idx])
-            oof[name][va_idx] = model.predict_proba(X_va)[:, 1]
-        blend = sum(BLEND_WEIGHTS[n] * oof[n][va_idx] for n in MODEL_NAMES)
-        fold_pr_aucs.append(float(average_precision_score(y[va_idx], blend)))
+    with sklearn_fit_context(use_gpu=True, cpu_only=args.cpu_only):
+        for tr_idx, va_idx in skf.split(X_raw, y):
+            imp = SimpleImputer(strategy="median")
+            X_tr = imp.fit_transform(X_raw[tr_idx])
+            X_va = imp.transform(X_raw[va_idx])
+            for name in MODEL_NAMES:
+                model = clone_model(name)
+                model.fit(X_tr, y[tr_idx])
+                oof[name][va_idx] = model.predict_proba(X_va)[:, 1]
+            blend = sum(BLEND_WEIGHTS[n] * oof[n][va_idx] for n in MODEL_NAMES)
+            fold_pr_aucs.append(float(average_precision_score(y[va_idx], blend)))
 
     oof_blend = sum(BLEND_WEIGHTS[n] * oof[n] for n in MODEL_NAMES)
     thresh = select_recall_oriented_threshold(y, oof_blend)
@@ -105,14 +108,15 @@ def main() -> None:
         }
     ).to_csv(run_dir / "oof_predictions.csv", index=False)
 
-    imp_full = SimpleImputer(strategy="median")
-    X_full = imp_full.fit_transform(X_raw)
-    joblib.dump(imp_full, artifacts_dir / "imputer.joblib")
+    with sklearn_fit_context(use_gpu=True, cpu_only=args.cpu_only):
+        imp_full = SimpleImputer(strategy="median")
+        X_full = imp_full.fit_transform(X_raw)
+        joblib.dump(imp_full, artifacts_dir / "imputer.joblib")
 
-    for name in MODEL_NAMES:
-        model = clone_model(name)
-        model.fit(X_full, y)
-        joblib.dump(model, artifacts_dir / f"{name}_model.joblib")
+        for name in MODEL_NAMES:
+            model = clone_model(name)
+            model.fit(X_full, y)
+            joblib.dump(model, artifacts_dir / f"{name}_model.joblib")
 
     meta = {
         "method": "sklearn-recall",

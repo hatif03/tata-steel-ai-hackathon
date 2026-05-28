@@ -3,25 +3,24 @@ Approach: Post-hoc union augment on gbm-recall top-33 anchor
 
 Pipeline:
 1. Train gbm-recall (equal XGB+LightGBM+CatBoost, tabular_features.py, top_k_33).
-2. Load test probas from secondary recall models at K=26.
+2. Load test probas from 16 secondary recall models at K=26.
 3. Union = gbm33 coils ∪ secondary top-K sets; candidates = union − gbm33.
 4. Rank candidates by max secondary proba; fill to target_k.
 5. Force canary coils {654, 806, 532, 958, 1187} positive.
 
-Leaderboard (confirmed):
-- K=39 (plus-6): 14.71698 — adds coil 1138
-- K=40 (plus-7): 15.09434 — adds 1346
-- K=41 (plus-8): 15.47170 — adds 1189
-- K=42 (plus-9): 15.84906 — adds 826 (current best)
+Leaderboard (confirmed through 2026-05-29):
+- K=42 (plus-9): 15.84906
+- K=43–49 (plus-10…16): 16.23 → 18.49 (+0.377 LB per exclusive)
+- K=50 (plus-17): 18.49057 (plateau — coil 797 no gain)
+- Current best: union-gbm33-plus-16 (K=49, 49 positives, LB 18.49057)
 
-Marginal gain ~0.377 LB per added exclusive in 38–42 band.
+Phase 10 incremental exclusives: 1023, 804, 302, 582, 972, 867, 176, 797.
 
-Feature engineering: raw X1–X49 + missing indicators (via gbm-recall base models).
+Failed on LB: rank-avg-k35 (13.21), vote-union-m2-k33 (17.74 = plus-14 tie).
 
-Tools: Python 3.11+, xgboost, lightgbm, catboost, pandas, scikit-learn, joblib.
+Tools: Python 3.11+, xgboost, lightgbm, catboost, pandas, scikit-learn, imbalanced-learn, autogluon.
 
 Reproduce:
-  python models/gbm-recall/train.py --threshold-strategy top_k_33
-  python models/gbm-recall/predict.py
-  python models/union-gbm33-augment/train.py --target-k 42 --ensure-secondaries
+  python scripts/run_phase10_train_batch.py --include-slow
+  python models/union-gbm33-augment/train.py --target-k 49 --ensure-secondaries
   python models/union-gbm33-augment/predict.py

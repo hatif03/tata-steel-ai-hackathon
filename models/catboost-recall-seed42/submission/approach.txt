@@ -1,0 +1,4 @@
+Approach: CatBoost (seed 42, depth 6) with recall-first top-K threshold.
+Features: X1–X49 via utils/tabular_features.
+Tools: catboost, scikit-learn, pandas.
+Reproduce: python models/catboost-recall-seed42/train.py && python models/catboost-recall-seed42/predict.py

@@ -22,6 +22,11 @@ DEFAULT_SECONDARY_METHODS = (
     "gbm-mega-blend",
     "catboost-recall",
     "meta-recall-stack",
+    "autogluon-recall",
+    "xgb-recall",
+    "lgb-seedblend-recall",
+    "knn-positive-profile",
+    "smote-stack-recall",
 )
 
 RankingMode = Literal["max", "mean", "weighted"]
